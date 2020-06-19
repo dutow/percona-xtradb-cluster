@@ -1817,7 +1817,7 @@ int ha_commit_trans(THD *thd, bool all, bool ignore_global_read_lock) {
     else if (trn_ctx->no_2pc(trx_scope) ||
              trn_ctx->rw_ha_count(trx_scope) == 1) {
       /* cache decision to run wsrep-commit-hook with log_bin=off. */
-      thd->run_wsrep_commit_hooks = wsrep_run_commit_hook(thd, all);
+      thd->run_wsrep_commit_hooks = wsrep_run_commit_hook(thd, all, false);
     }
 #else
     if (!trn_ctx->no_2pc(trx_scope) && (trn_ctx->rw_ha_count(trx_scope) > 1))
@@ -2485,7 +2485,7 @@ int ha_prepare_low(THD *thd, bool all) {
       if (!ha_info->is_trx_read_write()) continue;
 
 #ifdef WITH_WSREP
-      const bool run_wsrep_hooks = wsrep_run_commit_hook(thd, all);
+      const bool run_wsrep_hooks = wsrep_run_commit_hook(thd, all, false);
 
       if (run_wsrep_hooks && (ht->flags & HTON_WSREP_REPLICATION) &&
           (err = wsrep_before_prepare(thd, all))) {

@@ -3198,7 +3198,19 @@ bool Query_result_create::send_eof(THD *thd) {
     */
     if (!table->s->tmp_table) {
       thd->get_stmt_da()->set_overwrite_status(true);
+#ifdef WITH_WSREP
+      commit_error = trans_commit_stmt(thd);
+      if (!commit_error) {
+        /* transaction has replicated with stmt commit, we skip later attempts
+         * for replication */
+        thd->get_transaction()->m_flags.wsrep_skip_hooks = true;
+        // TODO: return value ignored ??
+        trans_commit_implicit(thd);
+        thd->get_transaction()->m_flags.wsrep_skip_hooks = false;
+      }
+#else
       commit_error = trans_commit_stmt(thd) || trans_commit_implicit(thd);
+#endif /* WITH_WSREP */
       thd->get_stmt_da()->set_overwrite_status(false);
 
 #ifdef WITH_WSREP

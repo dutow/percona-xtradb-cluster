@@ -8434,7 +8434,7 @@ TC_LOG::enum_result MYSQL_BIN_LOG::commit(THD *thd, bool all) {
 
 #ifdef WITH_WSREP
     int error;
-    const bool run_wsrep_hooks = wsrep_run_commit_hook(thd, all);
+    const bool run_wsrep_hooks = wsrep_run_commit_hook(thd, all, false);
     /* Set this flag to trigger execution of ordered commit as part of
     thread handler flush stage append flow. */
     thd->run_wsrep_ordered_commit = run_wsrep_hooks;

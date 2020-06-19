@@ -161,34 +161,33 @@ static inline int wsrep_after_row(THD *thd, bool) {
   - Is running in high priority mode and is ordered. This can be replayer,
     applier or storage access.
  */
-static inline bool wsrep_run_commit_hook(THD *thd, bool all) {
+static inline bool wsrep_run_commit_hook(THD *thd, bool all, bool s=true) {
   DBUG_ENTER("wsrep_run_commit_hook");
   DBUG_PRINT("wsrep", ("Is_active: %d is_real %d has_changes %d is_applying %d "
                        "is_ordered: %d",
                        wsrep_is_active(thd), wsrep_is_real(thd, all),
                        wsrep_has_changes(thd), wsrep_thd_is_applying(thd),
                        wsrep_is_ordered(thd)));
-  /* Is MST commit or autocommit? */
-  bool ret = wsrep_is_active(thd) && wsrep_is_real(thd, all);
-  /* Do not commit if we are aborting */
-  ret = ret && (thd->wsrep_trx().state() != wsrep::transaction::s_aborting);
 
-  /* Action below will log an empty group of GTID.
-  This is done when the real action fails to generate any meaningful result on
-  executing slave.
-  Let's understand with an example:
-  * Topology master <-> slave
-  * Some action is performed on slave which put it out-of-sync from master.
-  * Master then execute same action. Slave may choose to ignore error arising
-    from execution of these actions using slave_skip_errors configuration but
-    the GTID sequence increment still need to register on slave to keep it in
-    sync with master. So a dummy trx of this form is created. Galera
-    eco-system too will capture this dummy trx and will execute it for
-    internal replication to keep GTID sequence consistent across
-    the cluster. */
-  if (ret && thd->wsrep_replicate_GTID) {
+  if (!WSREP(thd)) DBUG_RETURN(false);
+
+  if(!thd->variables.sql_log_bin) {
+    WSREP_DEBUG("THD has sql_log_bin %d", thd->variables.sql_log_bin);
+    DBUG_RETURN(false);
+  }
+
+  if(!thd->get_transaction()->m_flags.wsrep_run_hooks && s) {
+    WSREP_DEBUG("Transaction is flagged to run hooks");
     DBUG_RETURN(true);
   }
+
+  if(thd->get_transaction()->m_flags.wsrep_skip_hooks && s) {
+    WSREP_DEBUG("Transaction is flagged to skip hooks");
+    DBUG_RETURN(false);
+  }
+
+  /* Is MST commit or autocommit? */
+  bool ret = wsrep_is_active(thd) && wsrep_is_real(thd, all);
 
   if (ret && !(wsrep_has_changes(thd) || /* Has generated write set */
                /* Is high priority (replay, applier, storage) and the
@@ -203,8 +202,16 @@ static inline bool wsrep_run_commit_hook(THD *thd, bool all) {
     if (thd->wsrep_trx().state() == wsrep::transaction::s_executing) {
       ret = false;
     }
+    /* Transaction has been either aborted or it did not have any
+       effect. */
+    if (thd->wsrep_trx().state() == wsrep::transaction::s_aborted) {
+      ret = false;
+    }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
+  /* make our decision sticky for the entire life time of this transaction */
+  thd->get_transaction()->m_flags.wsrep_run_hooks = ret;
+  WSREP_DEBUG("wsrep_run_commit_hook: %d", ret);
   DBUG_PRINT("wsrep", ("return: %d", ret));
   DBUG_RETURN(ret);
 }
@@ -218,42 +225,43 @@ static inline int wsrep_before_prepare(THD *thd, bool all) {
   DBUG_ENTER("wsrep_before_prepare");
   WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
   int ret = 0;
-  DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (wsrep_run_commit_hook(thd, all)) {
 
-  /* applier too use this routine but before prepare doesn't invoke
-  galera replication action. */
-  if (!wsrep_thd_is_applying(thd)) {
-    THD_STAGE_INFO(thd, stage_wsrep_replicating_commit);
-    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
-             "wsrep: replicating and certifying write set(%lld)",
-             (long long)wsrep_thd_trx_seqno(thd));
-    WSREP_DEBUG("%s", thd->wsrep_info);
-    thd_proc_info(thd, thd->wsrep_info);
-  } else {
-    THD_STAGE_INFO(thd, stage_wsrep_replicating_commit);
-    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
-             "wsrep: preparing to commit write set(%lld)",
-             (long long)wsrep_thd_trx_seqno(thd));
-    WSREP_DEBUG("%s", thd->wsrep_info);
-    thd_proc_info(thd, thd->wsrep_info);
-  }
-
-  if ((ret = thd->wsrep_cs().before_prepare()) == 0) {
-    DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
-    thd->wsrep_xid.reset();
-#if 0
-    wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx().ws_meta().gtid());
-#endif
-    wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
-                   thd->wsrep_trx().ws_meta().gtid());
-
+    /* applier too use this routine but before prepare doesn't invoke
+       galera replication action. */
     if (!wsrep_thd_is_applying(thd)) {
-      THD_STAGE_INFO(thd, stage_wsrep_write_set_replicated);
-      snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-               "wsrep: write set replicated and certified (%lld)",
-               (long long)wsrep_thd_trx_seqno(thd));
+      THD_STAGE_INFO(thd, stage_wsrep_replicating_commit);
+      snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+          "wsrep: replicating and certifying write set(%lld)",
+          (long long)wsrep_thd_trx_seqno(thd));
       WSREP_DEBUG("%s", thd->wsrep_info);
       thd_proc_info(thd, thd->wsrep_info);
+    } else {
+      THD_STAGE_INFO(thd, stage_wsrep_replicating_commit);
+      snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+          "wsrep: preparing to commit write set(%lld)",
+          (long long)wsrep_thd_trx_seqno(thd));
+      WSREP_DEBUG("%s", thd->wsrep_info);
+      thd_proc_info(thd, thd->wsrep_info);
+    }
+
+    if ((ret = thd->wsrep_cs().before_prepare()) == 0) {
+      DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+      thd->wsrep_xid.reset();
+#if 0
+      wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx().ws_meta().gtid());
+#endif
+      wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
+          thd->wsrep_trx().ws_meta().gtid());
+
+      if (!wsrep_thd_is_applying(thd)) {
+        THD_STAGE_INFO(thd, stage_wsrep_write_set_replicated);
+        snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
+            "wsrep: write set replicated and certified (%lld)",
+            (long long)wsrep_thd_trx_seqno(thd));
+        WSREP_DEBUG("%s", thd->wsrep_info);
+        thd_proc_info(thd, thd->wsrep_info);
+      }
     }
   }
   DBUG_RETURN(ret);
@@ -267,8 +275,8 @@ static inline int wsrep_before_prepare(THD *thd, bool all) {
 static inline int wsrep_after_prepare(THD *thd, bool all) {
   DBUG_ENTER("wsrep_after_prepare");
   WSREP_DEBUG("wsrep_after_prepare: %d", wsrep_is_real(thd, all));
-  DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
-  int ret = thd->wsrep_cs().after_prepare();
+  int ret =
+    (wsrep_run_commit_hook(thd, all) ? thd->wsrep_cs().after_prepare() : 0);
   DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error() ||
               thd->wsrep_cs().transaction().state() ==
                   wsrep::transaction::s_must_replay);
@@ -288,27 +296,28 @@ static inline int wsrep_before_commit(THD *thd, bool all) {
   WSREP_DEBUG("wsrep_before_commit: %d, %lld", wsrep_is_real(thd, all),
               (long long)wsrep_thd_trx_seqno(thd));
   int ret = 0;
-  DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
-  if ((ret = thd->wsrep_cs().before_commit()) == 0) {
-    DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+  if (wsrep_run_commit_hook(thd, all)) {
+    if ((ret = thd->wsrep_cs().before_commit()) == 0) {
+      DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
 #if 0
-    wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx().ws_meta().gtid());
-    wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
-                   thd->wsrep_cs().toi_meta().gtid());
+      wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx().ws_meta().gtid());
+      wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
+          thd->wsrep_cs().toi_meta().gtid());
 #endif
 
-    if (thd->run_wsrep_commit_hooks) {
-      /* If the transaction is running as one-phase then register
-      THD in wsrep group commit queue at this stage.
-      If the transaction is running as 2-phase then THD is registered
-      in ordered_commit to ensure thd registration order is same as
-      mysql group commit queue order. */
-      wsrep_register_for_group_commit(thd);
-    }
+      if (thd->run_wsrep_commit_hooks) {
+        /* If the transaction is running as one-phase then register
+           THD in wsrep group commit queue at this stage.
+           If the transaction is running as 2-phase then THD is registered
+           in ordered_commit to ensure thd registration order is same as
+           mysql group commit queue order. */
+        wsrep_register_for_group_commit(thd);
+      }
 
-    /* If the transaction doesn't go through prepare phase */
-    wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
-                   thd->wsrep_trx().ws_meta().gtid());
+      /* If the transaction doesn't go through prepare phase */
+      wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
+          thd->wsrep_trx().ws_meta().gtid());
+    }
   }
   DBUG_RETURN(ret);
 }
@@ -340,12 +349,15 @@ static inline int wsrep_ordered_commit(THD *thd, bool all,
 
   DBUG_ENTER("wsrep_ordered_commit");
   WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
-  DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (!wsrep_run_commit_hook(thd, all)) {
+    return 0;
+  }
 
   /* Register thread handler in wsrep group commit queue.
   Note: thread handler executing 2 phase commit transaction is registered
   as part of ordered_commit (and not part of before_commit) as wsrep group
   commit sequence should be same as mysql group commit queue sequence. */
+  // TODO: wsrep_register_for_group commit is deod code in CS
   wsrep_register_for_group_commit(thd);
 
   DBUG_RETURN(thd->wsrep_cs().ordered_commit());
@@ -361,31 +373,36 @@ static inline int wsrep_after_commit(THD *thd, bool all) {
   WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld, %d", wsrep_is_real(thd, all),
               wsrep_is_active(thd), (long long)wsrep_thd_trx_seqno(thd),
               wsrep_has_changes(thd));
-  DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
-
-  if (thd->wsrep_enforce_group_commit) {
-    /* Ideally, for one-phase (with binlog=off) or two-phase (with binlog=on)
-    this step would be executed when transaction commits in InnoDB.
-    If galera node is acting as async slave and replicated action from async
-    master result in empty changes on slave (slave directly applied the said
-    changes and has skipped error through skip-slave-error configuration) it
-    can result in said situation. In this case slave protocol directly commits
-    gtid through gtid_end_transaction that invokes ordered_commit causing
-    thread handler to register in wsrep group commit queue but since storage
-    engine commit is not done it would fail to unregister the said thread
-    handler as part of storage engine commit. Handle unregistration here. */
-    wsrep_unregister_from_group_commit(thd);
-  }
-
-  DBUG_ASSERT(!thd->wsrep_enforce_group_commit);
-
   int ret = 0;
-  if (thd->wsrep_trx().state() == wsrep::transaction::s_committing) {
-    ret = thd->wsrep_cs().ordered_commit();
+  // DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (wsrep_run_commit_hook(thd, all)) {
+
+    if (thd->wsrep_enforce_group_commit) {
+      /* Ideally, for one-phase (with binlog=off) or two-phase (with binlog=on)
+         this step would be executed when transaction commits in InnoDB.
+         If galera node is acting as async slave and replicated action from async
+         master result in empty changes on slave (slave directly applied the said
+         changes and has skipped error through skip-slave-error configuration) it
+         can result in said situation. In this case slave protocol directly commits
+         gtid through gtid_end_transaction that invokes ordered_commit causing
+         thread handler to register in wsrep group commit queue but since storage
+         engine commit is not done it would fail to unregister the said thread
+         handler as part of storage engine commit. Handle unregistration here. */
+      wsrep_unregister_from_group_commit(thd);
+    }
+
+    DBUG_ASSERT(!thd->wsrep_enforce_group_commit);
+
+    if (thd->wsrep_trx().state() == wsrep::transaction::s_committing) {
+      ret = thd->wsrep_cs().ordered_commit();
+    }
+    thd->wsrep_xid.reset();
+    thd->get_transaction()->xid_state()->get_xid()->reset();
+
+    ret = ret || thd->wsrep_cs().after_commit();
   }
-  thd->wsrep_xid.reset();
-  thd->get_transaction()->xid_state()->get_xid()->reset();
-  DBUG_RETURN(ret || thd->wsrep_cs().after_commit());
+
+  DBUG_RETURN(ret);
 }
 
 /*
@@ -428,6 +445,8 @@ static inline int wsrep_before_rollback(THD *thd, bool all) {
 static inline int wsrep_after_rollback(THD *thd, bool all) {
   DBUG_ENTER("wsrep_after_rollback");
   // WSREP_DEBUG("wsrep_after_rollback %u", thd->thread_id());
+  /* as transaction finished, reset the sticky commit hook flag */
+  thd->get_transaction()->m_flags.wsrep_run_hooks = false;
   if (!wsrep_is_real(thd, all)) {
     WSREP_DEBUG("wsrep_after_rollback stmt transaction rolled back");
     thd->wsrep_stmt_transaction_rolled_back = true;

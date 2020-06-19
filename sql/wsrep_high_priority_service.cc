@@ -582,7 +582,15 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta &ws_meta,
 
   wsrep_setup_uk_and_fk_checks(thd);
 
+  /* this wsrep_skip_hooks trick is needed to support CTAS execution in
+     applying.
+     We mark the transaction as non-replicable, to prevent wsrep commit time
+     hooks be called. This transaction will finally commit with
+     Wsrep_high_priority_service::commit
+  */
+  thd->get_transaction()->m_flags.wsrep_skip_hooks = true;
   int ret = wsrep_apply_events(thd, m_rli, data.data(), data.size());
+  thd->get_transaction()->m_flags.wsrep_skip_hooks = false;
 
   if (ret || thd->wsrep_has_ignored_error) {
     wsrep_dump_rbr_buf(thd, data.data(), data.size());
@@ -739,6 +747,13 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta &ws_meta,
 
   wsrep_setup_uk_and_fk_checks(thd);
 
+  /*
+    Skip wsrep hooks during write set applying. The write set may
+    contain statements which cause implicit commit (like BEGIN),
+    which should not cause wsrep commit.
+  */
+  thd->get_transaction()->m_flags.wsrep_skip_hooks = true;
+
   int ret = 0;
   if (!wsrep::starts_transaction(ws_meta.flags())) {
     DBUG_ASSERT(thd->wsrep_trx().is_streaming());
@@ -747,6 +762,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta &ws_meta,
   }
 
   ret = ret || wsrep_apply_events(thd, m_rli, data.data(), data.size());
+  thd->get_transaction()->m_flags.wsrep_skip_hooks = false;
 
   if (ret || thd->wsrep_has_ignored_error) {
     wsrep_dump_rbr_buf(thd, data.data(), data.size());

@@ -153,7 +153,21 @@ bool trans_begin(THD *thd, uint flags) {
     thd->server_status &=
         ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+#ifdef WITH_WSREP
+    /*
+      Transaction may have committed and replicated during trans_commit_stmt()
+      call, skip wsrep commit time hooks, if this is the case Such situation may
+      happen at least with CTAS execution
+    */
+    if (thd->wsrep_trx().state() == wsrep::transaction::s_committed) {
+      WSREP_DEBUG("transaction is committed in trans_commit_implicit");
+      thd->get_transaction()->m_flags.wsrep_skip_hooks = true;
+    }
+#endif /* WITH_WSREP */
     res = ha_commit_trans(thd, true);
+#ifdef WITH_WSREP
+    thd->get_transaction()->m_flags.wsrep_skip_hooks = false;
+#endif /* WITH_WSREP */
 
 #ifdef WITH_WSREP
     if (wsrep_thd_is_local(thd)) {
