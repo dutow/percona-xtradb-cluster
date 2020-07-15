@@ -202,6 +202,12 @@ int Wsrep_high_priority_service::start_transaction(
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta));
 }
 
+int Wsrep_high_priority_service::next_fragment(const wsrep::ws_meta& ws_meta)
+{
+  DBUG_ENTER(" Wsrep_high_priority_service::next_fragment");
+  DBUG_RETURN(m_thd->wsrep_cs().next_fragment(ws_meta));
+}
+
 const wsrep::transaction &Wsrep_high_priority_service::transaction() const {
   DBUG_ENTER(" Wsrep_high_priority_service::transaction");
   DBUG_RETURN(m_thd->wsrep_trx());
@@ -224,7 +230,7 @@ int Wsrep_high_priority_service::adopt_transaction(
 
 int Wsrep_high_priority_service::append_fragment_and_commit(
     const wsrep::ws_handle &ws_handle, const wsrep::ws_meta &ws_meta,
-    const wsrep::const_buffer &data) {
+    const wsrep::const_buffer &data, const wsrep::xid&) {
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret = start_transaction(ws_handle, ws_meta);
   /*
@@ -702,7 +708,6 @@ Wsrep_replayer_service::~Wsrep_replayer_service() {
     wsrep_after_command_ignore_result(replayer_thd);
     wsrep_close(replayer_thd);
   } else {
-    orig_thd->wsrep_cs().after_replay(replayer_thd->wsrep_trx());
     wsrep_after_apply(replayer_thd);
     wsrep_after_command_ignore_result(replayer_thd);
     wsrep_close(replayer_thd);

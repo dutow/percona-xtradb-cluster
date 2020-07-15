@@ -72,6 +72,11 @@ class Wsrep_server_service : public wsrep::server_service {
 
   void debug_sync(const char *);
 
+        void set_position(
+            wsrep::client_service& ,
+            const wsrep::gtid& ) override;
+
+
  private:
   Wsrep_server_state &m_server_state;
 };

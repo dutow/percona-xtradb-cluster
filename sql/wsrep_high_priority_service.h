@@ -19,7 +19,6 @@
 #include "my_inttypes.h"
 #include "sql_class.h" /* rpl_group_info */
 #include "sql_error.h" /* Diagnostics area */
-#include "wsrep/client_state.hpp"
 #include "wsrep/high_priority_service.hpp"
 
 class THD;
@@ -38,7 +37,8 @@ class Wsrep_high_priority_service : public wsrep::high_priority_service,
                       wsrep::mutable_buffer &) = 0;
   int append_fragment_and_commit(const wsrep::ws_handle &,
                                  const wsrep::ws_meta &,
-                                 const wsrep::const_buffer &);
+                                 const wsrep::const_buffer &,
+                                 const wsrep::xid &);
   int remove_fragments(const wsrep::ws_meta &);
   int commit(const wsrep::ws_handle &, const wsrep::ws_meta &);
   int rollback(const wsrep::ws_handle &, const wsrep::ws_meta &);
@@ -49,10 +49,12 @@ class Wsrep_high_priority_service : public wsrep::high_priority_service,
   void switch_execution_context(wsrep::high_priority_service &);
   int log_dummy_write_set(const wsrep::ws_handle &, const wsrep::ws_meta &,
                           wsrep::mutable_buffer &);
-  void adopt_apply_error(wsrep::mutable_buffer &) {}
+  void adopt_apply_error(wsrep::mutable_buffer &){}
 
   virtual bool check_exit_status() const = 0;
   void debug_crash(const char *);
+
+  int next_fragment(const wsrep::ws_meta&) override;
 
  protected:
   friend Wsrep_server_service;
@@ -81,6 +83,11 @@ class Wsrep_applier_service : public Wsrep_high_priority_service {
   void after_apply();
   bool is_replaying() const { return false; }
   bool check_exit_status() const;
+
+  int apply_nbo_begin(const wsrep::ws_meta& ,
+                                    const wsrep::const_buffer& ,
+                                    wsrep::mutable_buffer& 
+      ) override { return 0; }
 };
 
 class Wsrep_replayer_service : public Wsrep_high_priority_service {
@@ -98,6 +105,10 @@ class Wsrep_replayer_service : public Wsrep_high_priority_service {
   /* Replayer should never be forced to exit */
   bool check_exit_status() const { return false; }
 
+  int apply_nbo_begin(const wsrep::ws_meta& ,
+                                    const wsrep::const_buffer& ,
+                                    wsrep::mutable_buffer& 
+      ) override { return 0; }
  private:
   THD *m_orig_thd;
   struct da_shadow {

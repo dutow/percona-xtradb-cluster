@@ -17,7 +17,6 @@
 #include "debug_sync.h"
 #include "item_func.h"
 #include "mysql/components/services/log_builtins.h"
-#include "wsrep_applier.h" /* wsrep_apply_events() */
 #include "wsrep_binlog.h"  /* wsrep_dump_rbr_buf() */
 #include "wsrep_high_priority_service.h"
 #include "wsrep_schema.h" /* remove_fragments() */
@@ -138,7 +137,7 @@ void Wsrep_client_service::cleanup_transaction() {
 }
 
 int Wsrep_client_service::prepare_fragment_for_replication(
-    wsrep::mutable_buffer &buffer) {
+    wsrep::mutable_buffer &buffer, size_t& log_position) {
   DBUG_ASSERT(m_thd == current_thd);
   THD *thd = m_thd;
   DBUG_ENTER("Wsrep_client_service::prepare_fragment_for_replication");
@@ -156,7 +155,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
   unsigned char *read_pos = NULL;
   my_off_t read_len = 0;
 
-  if (cache->begin(&read_pos, &read_len, thd->wsrep_sr().bytes_certified())) {
+  if (cache->begin(&read_pos, &read_len, thd->wsrep_sr().log_position())) {
     DBUG_RETURN(1);
   }
 
@@ -180,6 +179,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
     }
   }
   DBUG_ASSERT(total_length == buffer.size());
+  log_position= saved_pos;
 cleanup:
   if (cache->truncate(saved_pos)) {
     WSREP_WARN("Failed to reinitialize IO cache");

@@ -2019,8 +2019,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
 
   wsrep::client_state &cs(thd->wsrep_cs());
   int ret = cs.enter_toi_local(
-      key_array, wsrep::const_buffer(buff.ptr, buff.len),
-      wsrep::provider::flag::start_transaction | wsrep::provider::flag::commit);
+      key_array, wsrep::const_buffer(buff.ptr, buff.len));
 
   if (ret) {
     DBUG_ASSERT(cs.current_error());

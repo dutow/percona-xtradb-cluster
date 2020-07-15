@@ -29,7 +29,7 @@ class Wsrep_storage_service : public wsrep::storage_service,
   int start_transaction(const wsrep::ws_handle &);
   void adopt_transaction(const wsrep::transaction &);
   int append_fragment(const wsrep::id &, wsrep::transaction_id, int flags,
-                      const wsrep::const_buffer &);
+                      const wsrep::const_buffer &, const wsrep::xid&);
   int update_fragment_meta(const wsrep::ws_meta &);
   int remove_fragments();
   int commit(const wsrep::ws_handle &, const wsrep::ws_meta &);
