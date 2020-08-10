@@ -74,7 +74,7 @@ class Wsrep_server_service : public wsrep::server_service {
 
         void set_position(
             wsrep::client_service& ,
-            const wsrep::gtid& ) override;
+            const wsrep::gtid& ) override{};
 
 
  private:

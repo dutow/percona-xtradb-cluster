@@ -248,6 +248,16 @@ extern "C" void wsrep_commit_ordered(THD *thd) {
   }
 }
 
+extern "C" bool wsrep_thd_has_ignored_error(const THD *thd)
+{
+  return thd->wsrep_has_ignored_error;
+}
+
+extern "C" void wsrep_thd_set_ignored_error(THD *thd, bool val)
+{
+  thd->wsrep_has_ignored_error= val;
+}
+
 extern "C" bool wsrep_consistency_check(const MYSQL_THD thd) {
   return ((const_cast<THD *>(thd))->wsrep_consistency_check ==
           CONSISTENCY_CHECK_RUNNING);

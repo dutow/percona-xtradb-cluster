@@ -1351,7 +1351,7 @@ bool wsrep_sync_wait(THD *thd, uint mask) {
           break;
         default:
           msg = "Synchronous wait failed.";
-          err = ER_LOCK_WAIT_TIMEOUT;  // NOTE: the above msg won't be displayed
+          err = ER_LOCK_WAIT_TIMEOUT;  // HERE! NOTE: the above msg won't be displayed
                                        //       with ER_LOCK_WAIT_TIMEOUT
       }
       my_error(err, MYF(0), msg);
@@ -1935,13 +1935,16 @@ static void wsrep_TOI_begin_failed(THD *thd,
       goto fail;
     }
     wsrep::client_state &cs(thd->wsrep_cs());
-    int const ret = cs.leave_toi_local(wsrep::mutable_buffer());
+    std::string const err(wsrep::to_c_string(cs.current_error()));
+    wsrep::mutable_buffer err_buf;
+    err_buf.push_back(err);
+    int const ret = cs.leave_toi_local(err_buf);
     if (ret) {
       WSREP_ERROR(
           "Leaving critical section for failed TOI failed: thd: %lld, "
           "schema: %s, SQL: %s, rcode: %d wsrep_error: %s",
           (long long)thd->real_id, thd->db().str, thd->query().str, ret,
-          wsrep::to_c_string(cs.current_error()));
+          err.c_str());
       goto fail;
     }
   }
@@ -2101,8 +2104,13 @@ static void wsrep_TOI_end(THD *thd) {
 
   if (wsrep_thd_is_local_toi(thd)) {
     wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+    wsrep::mutable_buffer err;
+    if (thd->is_error() && !wsrep_must_ignore_error(thd))
+    {
+        wsrep_store_error(thd, err);
+    }
+    int const ret= client_state.leave_toi_local(err);
 
-    int ret = client_state.leave_toi_local(wsrep::mutable_buffer());
     if (!ret) {
       WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
       /* Reset XID on completion of DDL transactions */
@@ -2445,7 +2453,7 @@ int wsrep_must_ignore_error(THD *thd) {
   const uint flags = sql_command_flags[thd->lex->sql_command];
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT(wsrep_thd_is_toi(thd) || wsrep_thd_is_applying(thd));
+  DBUG_ASSERT(wsrep_thd_is_toi(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_DDL))
     goto ignore_error;

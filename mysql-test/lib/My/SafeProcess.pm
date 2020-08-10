@@ -163,6 +163,7 @@ sub new {
 
   push(@safe_args, "--");
   push(@safe_args, $path);
+  #push(@safe_args, "--verbose") if $verbose && $path =~ /mysqltest/;
 
   if ($start_exit) {
     # Bypass safe_process instead, start program directly

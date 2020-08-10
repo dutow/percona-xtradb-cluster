@@ -65,7 +65,7 @@
 
 #include "my_config.h"
 
-int verbose = 0;
+int verbose = 1;
 volatile sig_atomic_t terminated = 0;
 volatile sig_atomic_t aborted = 0;
 pid_t child_pid = -1;

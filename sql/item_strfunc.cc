@@ -5351,7 +5351,7 @@ longlong Item_func_wsrep_sync_wait_upto_gtid::val_int() {
         err = ER_WRONG_ARGUMENTS;
         break;
       default:
-        err = ER_LOCK_WAIT_TIMEOUT;
+        err = ER_LOCK_WAIT_TIMEOUT; //!
     }
     my_error(err, MYF(0), func_name());
     return 0LL;

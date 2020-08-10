@@ -1,0 +1,57 @@
+#
+# Test a single node with an arbitrator.  Startup a 2-node cluster, shut down node 2, and use it's ports
+# for the garbd.
+#
+
+--source include/galera_cluster.inc
+
+SHOW STATUS LIKE 'wsrep_flow_control_interval';
+
+--echo Starting garbd ...
+--exec `dirname $WSREP_PROVIDER`/../bin/garbd --sst="xtrabackup-v2:127.0.0.1:9999/xtrabackup_sst//1" --recv-script="/home/dutow/garbd.sh" --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'evs.inactive_timeout=PT6S;base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 
+SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Error: incorrect sst script
+--error 1
+--exec `dirname $WSREP_PROVIDER`/../bin/garbd --sst="xtrabackup-v3:127.0.0.1:9999/xtrabackup_sst//1" --recv-script="/home/dutow/garbd.sh" --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'evs.inactive_timeout=PT6S;base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd2.log 2>&1 
+SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+#--echo Restarting node #2 to satisfy MTR's end-of-test checks
+#--connection node_2
+#--source include/start_mysqld.inc
+
+# Simulate two connection error 
+
+# Error: incorrect sst script
+--exec `dirname $WSREP_PROVIDER`/../bin/garbd --sst="xtrabackup-v2:127.0.0.1:9999/xtrabackup_sst//1" --recv-script="/home/dutow/garbd.sh" --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'evs.inactive_timeout=PT6S;base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd3.log 2>&1 & 
+SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+#--sleep 5
+
+# Error: incorrect sst script
+--error 134
+--exec `dirname $WSREP_PROVIDER`/../bin/garbd --sst="xtrabackup-v2:127.0.0.1:9998/xtrabackup_sst//1" --recv-script="/home/dutow/garbd2.sh" --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'evs.inactive_timeout=PT6S;base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd4.log 2>&1 
+
+--sleep 10
+
+SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# Workaround for galera#101
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+CALL mtr.add_suppression("Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_2
+CALL mtr.add_suppression("Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+

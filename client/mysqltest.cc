@@ -193,7 +193,7 @@ static int opt_max_connect_retries;
 static int opt_result_format_version;
 static int opt_max_connections = DEFAULT_MAX_CONN;
 static bool opt_colored_diff = false;
-static bool opt_compress = false, silent = false, verbose = false,
+static bool opt_compress = false, silent = false, verbose = true,
             trace_exec = false;
 static bool debug_info_flag = false, debug_check_flag = false;
 static bool tty_password = false;
@@ -1674,7 +1674,6 @@ void abort_not_supported_test(const char *fmt, ...) {
 void verbose_msg(const char *fmt, ...) {
   va_list args;
   DBUG_TRACE;
-  if (!verbose) return;
 
   va_start(args, fmt);
   fprintf(stderr, "mysqltest: ");
@@ -1683,6 +1682,7 @@ void verbose_msg(const char *fmt, ...) {
   if (start_lineno != 0) fprintf(stderr, "At line %u: ", start_lineno);
   vfprintf(stderr, fmt, args);
   fprintf(stderr, "\n");
+  fflush(stderr);
   va_end(args);
 }
 
@@ -9806,6 +9806,7 @@ int main(int argc, char **argv) {
         case Q_EXIT:
           /* Stop processing any more commands */
           abort_flag = true;
+  verbose_msg("Aborting stuff");
           break;
         case Q_SKIP: {
           DYNAMIC_STRING ds_skip_msg;
