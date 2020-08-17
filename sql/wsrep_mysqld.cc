@@ -357,8 +357,8 @@ static wsrep_psi_key_vec_t wsrep_psi_key_vec;
                         mutex is passes through this variable.
  * @param ts      time to wait for condition.
  */
-void wsrep_pfs_instr_cb(wsrep_pfs_instr_type_t type, wsrep_pfs_instr_ops_t ops,
-                        wsrep_pfs_instr_tag_t tag,
+void wsrep_pfs_instr_cb(wsrep_pfs_instr_type type, wsrep_pfs_instr_ops ops,
+                        wsrep_pfs_instr_tag tag,
                         void **value __attribute__((unused)),
                         void **alliedvalue __attribute__((unused)),
                         const void *ts __attribute__((unused))) {

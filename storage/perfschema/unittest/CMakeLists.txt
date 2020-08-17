@@ -33,16 +33,16 @@ MACRO (PFS_ADD_TEST name)
 ENDMACRO()
 
 SET(tests
- pfs_instr_class
- pfs_instr_class-oom
- pfs_instr
- pfs_instr-oom
- pfs_account-oom
- pfs_host-oom
- pfs_user-oom
- pfs_noop
- pfs
- pfs_misc
+  # pfs_instr_class
+  #pfs_instr_class-oom
+  #pfs_instr
+  #pfs_instr-oom
+  #pfs_account-oom
+  #pfs_host-oom
+  #pfs_user-oom
+  #pfs_noop
+  #pfs
+  #pfs_misc
 )
 FOREACH(testname ${tests})
   PFS_ADD_TEST(${testname})
