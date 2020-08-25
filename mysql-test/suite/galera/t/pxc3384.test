@@ -1,0 +1,6 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+
+SET @@session.max_error_count=-0;
+DROP TABLESPACE InnoDB_System;

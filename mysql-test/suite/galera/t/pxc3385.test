@@ -1,0 +1,6 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+
+--error ER_TABLE_CANT_HANDLE_BLOB
+CREATE TABLE t1 (a BLOB NOT NULL, id BIGINT NOT NULL, PRIMARY KEY(id)) ENGINE=MEMORY;
