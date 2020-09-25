@@ -14,13 +14,13 @@ authentication_ldap_simple_init_pool_size	10
 authentication_ldap_simple_log_status	1
 authentication_ldap_simple_max_pool_size	1000
 authentication_ldap_simple_server_host	
-authentication_ldap_simple_server_port	389
+authentication_ldap_simple_server_port	<MTR_LDAP_PORT>
 authentication_ldap_simple_ssl	OFF
 authentication_ldap_simple_tls	OFF
 authentication_ldap_simple_user_search_attr	uid
 SET GLOBAL authentication_ldap_simple_bind_base_dn = 'ou=people,dc=planetexpress,dc=com';
-SET GLOBAL authentication_ldap_simple_server_host = '172.18.0.2';
-SET GLOBAL authentication_ldap_simple_server_port = 389;
+SET GLOBAL authentication_ldap_simple_server_host = '<MTR_LDAP_HOST>';
+SET GLOBAL authentication_ldap_simple_server_port = <MTR_LDAP_PORT>;
 SHOW GLOBAL VARIABLES LIKE 'authentication_ldap_simple%';
 Variable_name	Value
 authentication_ldap_simple_auth_method_name	SIMPLE
@@ -33,8 +33,8 @@ authentication_ldap_simple_group_search_filter	(|(&(objectClass=posixGroup)(memb
 authentication_ldap_simple_init_pool_size	10
 authentication_ldap_simple_log_status	1
 authentication_ldap_simple_max_pool_size	1000
-authentication_ldap_simple_server_host	172.18.0.2
-authentication_ldap_simple_server_port	389
+authentication_ldap_simple_server_host	<MTR_LDAP_HOST>
+authentication_ldap_simple_server_port	<MTR_LDAP_PORT>
 authentication_ldap_simple_ssl	OFF
 authentication_ldap_simple_tls	OFF
 authentication_ldap_simple_user_search_attr	uid
@@ -52,19 +52,17 @@ authentication_ldap_simple_group_search_filter	(|(&(objectClass=posixGroup)(memb
 authentication_ldap_simple_init_pool_size	10
 authentication_ldap_simple_log_status	1
 authentication_ldap_simple_max_pool_size	1000
-authentication_ldap_simple_server_host	172.18.0.2
-authentication_ldap_simple_server_port	389
+authentication_ldap_simple_server_host	<MTR_LDAP_HOST>
+authentication_ldap_simple_server_port	<MTR_LDAP_PORT>
 authentication_ldap_simple_ssl	OFF
 authentication_ldap_simple_tls	OFF
 authentication_ldap_simple_user_search_attr	uid
 SET GLOBAL authentication_ldap_simple_server_host = 'badhost';
-connect(localhost,zoidberg,zoidberg,test,13000,/work/build/mysql-test/var/tmp/mysqld.1.sock);
 ERROR 28000: Access denied for user 'zoidberg'@'localhost' (using password: YES)
-SET GLOBAL authentication_ldap_simple_server_host = '172.18.0.2';
-SET GLOBAL authentication_ldap_simple_server_port = 388;
-connect(localhost,zoidberg,zoidberg,test,13000,/work/build/mysql-test/var/tmp/mysqld.1.sock);
+SET GLOBAL authentication_ldap_simple_server_host = '<MTR_LDAP_HOST>';
+SET GLOBAL authentication_ldap_simple_server_port = <BAD_MTR_LDAP_PORT>;
 ERROR 28000: Access denied for user 'zoidberg'@'localhost' (using password: YES)
-SET GLOBAL authentication_ldap_simple_server_port = 389;
+SET GLOBAL authentication_ldap_simple_server_port = <MTR_LDAP_PORT>;
 SHOW GLOBAL VARIABLES LIKE 'authentication_ldap_simple%';
 Variable_name	Value
 authentication_ldap_simple_auth_method_name	SIMPLE
@@ -77,8 +75,8 @@ authentication_ldap_simple_group_search_filter	(|(&(objectClass=posixGroup)(memb
 authentication_ldap_simple_init_pool_size	10
 authentication_ldap_simple_log_status	1
 authentication_ldap_simple_max_pool_size	1000
-authentication_ldap_simple_server_host	172.18.0.2
-authentication_ldap_simple_server_port	389
+authentication_ldap_simple_server_host	<MTR_LDAP_HOST>
+authentication_ldap_simple_server_port	<MTR_LDAP_PORT>
 authentication_ldap_simple_ssl	OFF
 authentication_ldap_simple_tls	OFF
 authentication_ldap_simple_user_search_attr	uid
@@ -86,4 +84,5 @@ DROP USER zoidberg;
 DROP USER nonexistent;
 SET GLOBAL authentication_ldap_simple_bind_base_dn = '';
 SET GLOBAL authentication_ldap_simple_server_host = '';
+SET GLOBAL authentication_ldap_simple_server_port = 389;
 SET GLOBAL authentication_ldap_simple_log_status = 1;

@@ -565,8 +565,16 @@ fi
 
 # Patch needed libraries
 (
+<<<<<<< HEAD
     LIBLIST="libcrypto.so libssl.so libgcrypt.so libreadline.so libtinfo.so libsasl2.so libbrotlidec.so libbrotlicommon.so libgssapi_krb5.so libkrb5.so libkrb5support.so libk5crypto.so librtmp.so libgssapi.so libfreebl3.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so libtirpc.so"
     DIRLIST="bin bin/pxc_extra/pxb-8.0/bin bin/pxc_extra/pxb-2.4/bin lib bin/pxc_extra/pxb-8.0/lib/plugin bin/pxc_extra/pxb-2.4/lib/plugin lib/private lib/plugin"
+||||||| 5b5a5d2584a
+    LIBLIST="libcrypto.so libssl.so libreadline.so libtinfo.so libsasl2.so libcurl.so libldap liblber libssh libbrotlidec.so libbrotlicommon.so libgssapi_krb5.so libkrb5.so libkrb5support.so libk5crypto.so librtmp.so libgssapi.so libfreebl3.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so libssl3.so libplds4.so"
+    DIRLIST="bin lib lib/private lib/plugin lib/mysqlrouter/plugin lib/mysqlrouter/private"
+=======
+    LIBLIST="libcrypto.so libssl.so libreadline.so libtinfo.so libsasl2.so libbrotlidec.so libbrotlicommon.so libgssapi_krb5.so libkrb5.so libkrb5support.so libk5crypto.so librtmp.so libgssapi.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplc4.so libnspr4.so libssl3.so libplds4.so"
+    DIRLIST="bin lib lib/private lib/plugin lib/mysqlrouter/plugin lib/mysqlrouter/private"
+>>>>>>> ps/release-8.0.21-12
 
     LIBPATH=""
 
@@ -609,11 +617,33 @@ fi
         # Set proper runpath for bins but check before doing anything
         local elf_path=$1
         local r_path=$2
+<<<<<<< HEAD
         for elf in $(find ${elf_path} -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
             echo "Checking LD_RUNPATH for ${elf}"
             if [[ -z $(patchelf --print-rpath ${elf}) ]]; then
                 echo "Changing RUNPATH for ${elf}"
                 patchelf --set-rpath ${r_path} ${elf}
+||||||| 5b5a5d2584a
+        for elf in $(find $elf_path -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
+            echo "Checking LD_RUNPATH for $elf"
+            if [[ -z $(patchelf --print-rpath $elf) ]]; then
+                echo "Changing RUNPATH for $elf"
+                patchelf --set-rpath $r_path $elf
+            fi
+            if [[ ! -z $override ]] && [[ $override == "true" ]]; then
+                echo "Overriding RUNPATH for $elf"
+                patchelf --set-rpath $r_path $elf
+=======
+        for elf in $(find ${elf_path} -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
+            echo "Checking LD_RUNPATH for ${elf}"
+            if [[ -z $(patchelf --print-rpath ${elf}) ]]; then
+                echo "Changing RUNPATH for ${elf}"
+                patchelf --set-rpath ${r_path} ${elf}
+            fi
+            if [[ ! -z "${override}" ]] && [[ "${override}" == "true" ]]; then
+                echo "Overriding RUNPATH for ${elf}"
+                patchelf --set-rpath ${r_path} ${elf}
+>>>>>>> ps/release-8.0.21-12
             fi
         done
     }
@@ -662,6 +692,7 @@ fi
         set_runpath lib/private '$ORIGIN'
 
         # Replace libs
+<<<<<<< HEAD
         for DIR in ${DIRLIST}; do
             replace_libs ${DIR}
         done
@@ -669,18 +700,43 @@ fi
         # Make final check in order to determine any error after linkage
         for DIR in ${DIRLIST}; do
             check_libs ${DIR}
+||||||| 5b5a5d2584a
+        for DIR in $DIRLIST; do
+            replace_libs $DIR
+=======
+        for DIR in ${DIRLIST}; do
+            replace_libs ${DIR}
+        done
+        # Make final check in order to determine any error after linkage
+        for DIR in ${DIRLIST}; do
+            check_libs ${DIR}
+>>>>>>> ps/release-8.0.21-12
         done
     }
 
+<<<<<<< HEAD
     mkdir -p "$TARGETDIR/usr/local/minimal"
     cp -r "$TARGETDIR/usr/local/$PRODUCT_FULL_NAME" "$TARGETDIR/usr/local/minimal/$PRODUCT_FULL_NAME-minimal"
+||||||| 5b5a5d2584a
+    mkdir $INSTALLDIR/usr/local/minimal
+    cp -r "$INSTALLDIR/usr/local/$PRODUCT_FULL" "$INSTALLDIR/usr/local/minimal/$PRODUCT_FULL"
+=======
+    mkdir $INSTALLDIR/usr/local/minimal
+    cp -r "$INSTALLDIR/usr/local/$PRODUCT_FULL" "$INSTALLDIR/usr/local/minimal/$PRODUCT_FULL-minimal"
+>>>>>>> ps/release-8.0.21-12
 
     # NORMAL TARBALL
     cd "$TARGETDIR/usr/local/$PRODUCT_FULL_NAME"
     link
 
     # MIN TARBALL
+<<<<<<< HEAD
     cd "$TARGETDIR/usr/local/minimal/$PRODUCT_FULL_NAME-minimal"
+||||||| 5b5a5d2584a
+    cd "$INSTALLDIR/usr/local/minimal/$PRODUCT_FULL"
+=======
+    cd "$INSTALLDIR/usr/local/minimal/$PRODUCT_FULL-minimal"
+>>>>>>> ps/release-8.0.21-12
     rm -rf mysql-test 2> /dev/null
     rm -rf percona-xtradb-cluster-tests 2> /dev/null
     find . -type f -exec file '{}' \; | grep ': ELF ' | cut -d':' -f1 | xargs strip --strip-unneeded
@@ -694,11 +750,23 @@ fi
     find $PRODUCT_FULL -type f -name 'COPYING.AGPLv3' -delete
     $TAR --owner=0 --group=0 -czf "$TARGETDIR/$PRODUCT_FULL_NAME.tar.gz" $PRODUCT_FULL_NAME
 
+<<<<<<< HEAD
     cd "$TARGETDIR/usr/local/minimal/"
     # PS-4854 Percona Server for MySQL tarball without AGPLv3 dependency/license
     find $PRODUCT_FULL -type f -name 'COPYING.AGPLv3' -delete
     $TAR --owner=0 --group=0 -czf "$TARGETDIR/$PRODUCT_FULL_NAME-minimal.tar.gz" $PRODUCT_FULL_NAME-minimal
 ) || exit 1
+||||||| 5b5a5d2584a
+    cd "$INSTALLDIR/usr/local/minimal/"
+    find $PRODUCT_FULL -type f -name 'COPYING.AGPLv3' -delete
+    $TAR --owner=0 --group=0 -czf "$WORKDIR_ABS/$PRODUCT_FULL-minimal.tar.gz" $PRODUCT_FULL
+)
+=======
+    cd "$INSTALLDIR/usr/local/minimal/"
+    find $PRODUCT_FULL-minimal -type f -name 'COPYING.AGPLv3' -delete
+    $TAR --owner=0 --group=0 -czf "$WORKDIR_ABS/$PRODUCT_FULL-minimal.tar.gz" $PRODUCT_FULL-minimal
+)
+>>>>>>> ps/release-8.0.21-12
 
 if [[ $KEEP_BUILD -eq 0 ]]
 then

@@ -1,5 +1,6 @@
 .. _data_at_rest_encryption:
 
+<<<<<<< HEAD
 =======================
 Data at Rest Encryption
 =======================
@@ -354,6 +355,17 @@ keyring data file location is not the default location.
 Other non-keyring options may be required as well. One way to specify these
 options is by using ``--defaults-file`` to name an option file that contains
 the required options.
+||||||| 5b5a5d2584a
+
+==============================================================================
+Data at Rest Encryption
+==============================================================================
+=======
+==============================================
+Data at Rest Encryption - moved
+==============================================
+
+>>>>>>> ps/release-8.0.21-12
 
 .. code-block:: text
 

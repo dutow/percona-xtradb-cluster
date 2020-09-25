@@ -65,8 +65,24 @@ Introduction
 .. toctree::
    :maxdepth: 1
 
+<<<<<<< HEAD
    intro
    limitation
+||||||| 5b5a5d2584a
+.. toctree::
+   :maxdepth: 2
+   :glob:
+
+   installation
+   upgrading_guide
+=======
+.. toctree::
+   :maxdepth: 2
+   :glob:
+
+   installation
+   installation/post-installation
+>>>>>>> ps/release-8.0.21-12
 
 Getting Started
 ===============
@@ -109,6 +125,7 @@ User\'s Manual
 .. toctree::
    :maxdepth: 1
 
+<<<<<<< HEAD
    manual/state_snapshot_transfer
    manual/xtrabackup_sst
    manual/restarting_nodes
@@ -119,6 +136,95 @@ User\'s Manual
    manual/gcache_record-set_cache_difference
    manual/performance_schema_instrumentation
    management/data_at_rest_encryption
+||||||| 5b5a5d2584a
+.. toctree::
+  :maxdepth: 1
+  :glob:
+
+  security/pam_plugin
+  security/simple-ldap
+  security/data-at-rest-encryption
+  security/vault
+  security/using-keyring-plugin
+  security/rotating-master-key
+  security/encrypting-tables
+  security/encrypting-tablespaces
+  security/encrypting-system-tablespace
+  security/encrypting-temporary-files
+  security/encrypting-binlogs
+  security/encrypting-redo-log
+  security/encrypting-undo-tablespace
+  security/encrypting-threads
+  security/encrypting-doublewrite-buffers
+  security/verifying-encryption
+  security/data-scrubbing
+  security/ssl-improvement
+  security/data-masking
+
+Diagnostics Improvements
+================================================================================
+
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   diagnostics/user_stats
+   diagnostics/slow_extended
+   diagnostics/innodb_show_status
+   diagnostics/show_engines
+   diagnostics/process_list
+   diagnostics/misc_info_schema_tables
+   diagnostics/thread_based_profiling
+   diagnostics/innodb_fragmentation_count
+
+TokuDB
+================================================================================
+=======
+.. toctree::
+  :maxdepth: 1
+  :glob:
+
+  security/pam_plugin
+  security/simple-ldap
+  security/data-at-rest-encryption
+  security/vault
+  security/using-keyring-plugin
+  security/rotating-master-key
+  security/encrypting-tables
+  security/encrypting-tablespaces
+  security/encrypting-system-tablespace
+  security/encrypting-temporary-files
+  security/encrypting-binlogs
+  security/encrypting-redo-log
+  security/encrypting-undo-tablespace
+  security/encrypting-threads
+  security/encrypting-doublewrite-buffers
+  security/verifying-encryption
+  security/data-scrubbing
+  security/ssl-improvement
+  security/data-masking
+
+Diagnostics Improvements
+================================================================================
+
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   diagnostics/user_stats
+   diagnostics/slow_extended
+   diagnostics/innodb_show_status
+   diagnostics/show_engines
+   diagnostics/process_list
+   diagnostics/misc_info_schema_tables
+   diagnostics/thread_based_profiling
+   diagnostics/innodb_fragmentation_count
+   diagnostics/stacktrace
+   diagnostics/libcoredumper
+
+TokuDB
+================================================================================
+>>>>>>> ps/release-8.0.21-12
 
 How-tos
 =======
