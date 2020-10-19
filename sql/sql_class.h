@@ -3177,12 +3177,6 @@ class THD : public MDL_context_owner,
     ~Permanent_transform() { m_thd->m_permanent_transform = m_old_value; }
   };
 
-<<<<<<< HEAD
-#ifdef WITH_WSREP
-  explicit THD(bool enable_plugins = true, bool is_applier = false);
-#else
-||||||| 5b5a5d2584a
-=======
   /*
     Audit API events are generated, when this flag is true. The flag
     is initially true, but it can be set false in some cases, e.g.
@@ -3191,7 +3185,9 @@ class THD : public MDL_context_owner,
   */
   bool m_audited;
 
->>>>>>> ps/release-8.0.21-12
+#ifdef WITH_WSREP
+  explicit THD(bool enable_plugins = true, bool is_applier = false);
+#else
   explicit THD(bool enable_plugins = true);
 #endif /* WITH_WSREP */
 

@@ -3628,7 +3628,12 @@ int mysql_execute_command(THD *thd, bool first_level) {
     goto error;
   }
 
-<<<<<<< HEAD
+  DBUG_EXECUTE_IF(
+      "force_rollback_in_slave_on_transactional_ddl_commit",
+      if (thd->m_transactional_ddl.inited() &&
+          thd->lex->sql_command == SQLCOM_COMMIT) {
+        lex->sql_command = SQLCOM_ROLLBACK;
+      });
 #ifdef WITH_WSREP
   /*
     Always start a new transaction for a wsrep THD unless the
@@ -3653,16 +3658,6 @@ int mysql_execute_command(THD *thd, bool first_level) {
   }
 #endif /* WITH_WSREP */
 
-||||||| 5b5a5d2584a
-=======
-  DBUG_EXECUTE_IF(
-      "force_rollback_in_slave_on_transactional_ddl_commit",
-      if (thd->m_transactional_ddl.inited() &&
-          thd->lex->sql_command == SQLCOM_COMMIT) {
-        lex->sql_command = SQLCOM_ROLLBACK;
-      });
-
->>>>>>> ps/release-8.0.21-12
   /*
     We do not flag "is DML" (TX_STMT_DML) here as replication expects us to
     test for LOCK TABLE etc. first. To rephrase, we try not to set TX_STMT_DML
@@ -4861,7 +4856,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
       if (first_table && lex->type & REFRESH_READ_LOCK) {
 #ifdef WITH_WSREP
         if (pxc_strict_mode_lock_check(thd)) goto error;
-        bool already_paused;
+        bool already_paused = false;
 #endif /* WITH_WSREP */
 
         /*
@@ -4894,7 +4889,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
       } else if (first_table && lex->type & REFRESH_FOR_EXPORT) {
 #ifdef WITH_WSREP
         if (pxc_strict_mode_lock_check(thd)) goto error;
-        bool already_paused;
+        bool already_paused = false;
 #endif /* WITH_WSREP */
         /*
            Do not allow FLUSH TABLES ... FOR EXPORT under an active LOCK TABLES
@@ -5515,8 +5510,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
     case SQLCOM_EXPLAIN_OTHER:
     case SQLCOM_RESTART_SERVER:
     case SQLCOM_CREATE_SRS:
-<<<<<<< HEAD
-    case SQLCOM_DROP_SRS:
+    case SQLCOM_DROP_SRS: {
 
 #ifdef WITH_WSREP
 
@@ -5554,12 +5548,6 @@ int mysql_execute_command(THD *thd, bool first_level) {
       }
 #endif /* WITH_WSREP */
 
-||||||| 5b5a5d2584a
-    case SQLCOM_DROP_SRS:
-
-=======
-    case SQLCOM_DROP_SRS: {
->>>>>>> ps/release-8.0.21-12
       DBUG_ASSERT(lex->m_sql_cmd != nullptr);
 
       Enable_derived_merge_guard derived_merge_guard(

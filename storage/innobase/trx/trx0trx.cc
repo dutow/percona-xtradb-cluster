@@ -2693,7 +2693,6 @@ void trx_print_latched(FILE *f, const trx_t *trx, ulint max_query_len) {
                 mem_heap_get_size(trx->lock.lock_heap));
 }
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
 /** Prints info about a transaction.
  Transaction information may be retrieved without having trx_sys->mutex acquired
@@ -2709,7 +2708,7 @@ void wsrep_trx_print_locking(
   ibool newline;
   const char *op_info;
 
-  ut_ad(lock_mutex_own());
+  // TODO ut_ad(lock_mutex_own());
   ut_ad(trx->lock.trx_locks.count > 0);
 
   fprintf(f, "TRANSACTION " TRX_ID_FMT, trx->id);
@@ -2807,46 +2806,9 @@ state_ok:
 }
 #endif /* WITH_WSREP */
 
-/** Prints info about a transaction.
- Acquires and releases lock_sys->mutex and trx_sys->mutex. */
-void trx_print(FILE *f,             /*!< in: output stream */
-               const trx_t *trx,    /*!< in: transaction */
-               ulint max_query_len) /*!< in: max query length to print,
-                                    or 0 to use the default max length */
-{
-  ulint n_rec_locks;
-  ulint n_trx_locks;
-  ulint heap_size;
-
-  lock_mutex_enter();
-  n_rec_locks = lock_number_of_rows_locked(&trx->lock);
-  n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
-  heap_size = mem_heap_get_size(trx->lock.lock_heap);
-  lock_mutex_exit();
-
-||||||| 5b5a5d2584a
-/** Prints info about a transaction.
- Acquires and releases lock_sys->mutex and trx_sys->mutex. */
-void trx_print(FILE *f,             /*!< in: output stream */
-               const trx_t *trx,    /*!< in: transaction */
-               ulint max_query_len) /*!< in: max query length to print,
-                                    or 0 to use the default max length */
-{
-  ulint n_rec_locks;
-  ulint n_trx_locks;
-  ulint heap_size;
-
-  lock_mutex_enter();
-  n_rec_locks = lock_number_of_rows_locked(&trx->lock);
-  n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
-  heap_size = mem_heap_get_size(trx->lock.lock_heap);
-  lock_mutex_exit();
-
-=======
 void trx_print(FILE *f, const trx_t *trx, ulint max_query_len) {
   /* trx_print_latched() requires exclusive global latch */
   locksys::Global_exclusive_latch_guard guard{};
->>>>>>> ps/release-8.0.21-12
   mutex_enter(&trx_sys->mutex);
   trx_print_latched(f, trx, max_query_len);
   mutex_exit(&trx_sys->mutex);

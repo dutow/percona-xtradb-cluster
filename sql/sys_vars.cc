@@ -3966,6 +3966,7 @@ static bool check_slave_stopped(sys_var *self, THD *thd, set_var *var) {
 
 static const char *slave_rows_search_algorithms_names[] = {
     "TABLE_SCAN", "INDEX_SCAN", "HASH_SCAN", nullptr};
+/*
 static Sys_var_set Slave_rows_search_algorithms(
     "slave_rows_search_algorithms",
     "Set of searching algorithms that the slave will use while "
@@ -3981,6 +3982,7 @@ static Sys_var_set Slave_rows_search_algorithms(
     DEFAULT(SLAVE_ROWS_INDEX_SCAN | SLAVE_ROWS_HASH_SCAN), NO_MUTEX_GUARD,
     NOT_IN_BINLOG, ON_CHECK(check_not_null_not_empty), ON_UPDATE(nullptr),
     DEPRECATED_VAR(""));
+    */
 
 static const char *mts_parallel_type_names[] = {"DATABASE", "LOGICAL_CLOCK",
                                                 nullptr};

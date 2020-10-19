@@ -874,7 +874,7 @@ MY_NODISCARD static const lock_t *lock_rec_other_has_expl_req(
 
 #ifdef WITH_WSREP
 static void wsrep_kill_victim(const trx_t *const trx, const lock_t *lock) {
-  ut_ad(lock_mutex_own());
+  // TODO ut_ad(lock_mutex_own());
   ut_ad(trx_mutex_own(lock->trx));
 
   /* quit for native mysql */
@@ -1440,14 +1440,8 @@ queue is itself waiting roll it back, also do a deadlock check and resolve.
 dberr_t RecLock::add_to_waitq(lock_t *const wait_for, const lock_prdt_t *prdt) {
 #else
 dberr_t RecLock::add_to_waitq(const lock_t *wait_for, const lock_prdt_t *prdt) {
-<<<<<<< HEAD
 #endif /* WITH_WSREP */
-  ut_ad(lock_mutex_own());
-||||||| 5b5a5d2584a
-  ut_ad(lock_mutex_own());
-=======
   ut_ad(locksys::owns_page_shard(m_rec_id.get_page_id()));
->>>>>>> ps/release-8.0.21-12
   ut_ad(m_trx == thr_get_trx(m_thr));
 
   /* It is not that the body of this function requires trx->mutex, but some of
@@ -3975,13 +3969,7 @@ void lock_table_ix_resurrect(dict_table_t *table, /*!< in/out: table */
   lock_table_create(NULL, table, LOCK_IX, trx);
 #else
   lock_table_create(table, LOCK_IX, trx);
-<<<<<<< HEAD
 #endif /* WITH_WSREP */
-  lock_mutex_exit();
-||||||| 5b5a5d2584a
-  lock_mutex_exit();
-=======
->>>>>>> ps/release-8.0.21-12
   trx_mutex_exit(trx);
 }
 
@@ -5724,7 +5712,15 @@ dberr_t lock_rec_insert_check_and_lock(
       /* If another transaction has an explicit lock request which locks
       the gap, waiting or granted, on the successor, the insert has to wait.
 
-<<<<<<< HEAD
+      An exception is the case where the lock by the another transaction
+      is a gap type lock which it placed to wait for its turn to insert. We
+      do not consider that kind of a lock conflicting with our insert. This
+      eliminates an unnecessary deadlock which resulted when 2 transactions
+      had to wait for their insert. Both had waiting gap type lock requests
+      on the successor, which produced an unnecessary deadlock. */
+
+      const ulint type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
+
 #ifdef WITH_WSREP
   if (wsrep_log_conflicts) mutex_enter(&trx_sys->mutex);
 #endif /* WITH_WSREP */
@@ -5740,22 +5736,6 @@ dberr_t lock_rec_insert_check_and_lock(
 #ifdef WITH_WSREP
   if (wsrep_log_conflicts) mutex_exit(&trx_sys->mutex);
 #endif /* WITH_WSREP */
-||||||| 5b5a5d2584a
-  const lock_t *wait_for =
-      lock_rec_other_has_conflicting(type_mode, block, heap_no, trx);
-=======
-      An exception is the case where the lock by the another transaction
-      is a gap type lock which it placed to wait for its turn to insert. We
-      do not consider that kind of a lock conflicting with our insert. This
-      eliminates an unnecessary deadlock which resulted when 2 transactions
-      had to wait for their insert. Both had waiting gap type lock requests
-      on the successor, which produced an unnecessary deadlock. */
->>>>>>> ps/release-8.0.21-12
-
-      const ulint type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
-
-      const lock_t *wait_for =
-          lock_rec_other_has_conflicting(type_mode, block, heap_no, trx);
 
       if (wait_for != nullptr) {
         RecLock rec_lock(thr, index, block, heap_no, type_mode);
@@ -6617,7 +6597,6 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
 {
   dberr_t err;
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
   /* We already own mutexes. */
   if (!trx->lock.was_chosen_as_wsrep_victim) {
@@ -6626,24 +6605,19 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
     this gap it can cause trx mutex to not get released.
     This issue is now addressed by ensuring additional check below
     post acquiring trx_mutex. */
-    lock_mutex_enter();
+    // TODO lock_mutex_enter();
     trx_mutex_enter(trx);
 
     if (trx->lock.was_chosen_as_wsrep_victim) {
-      lock_mutex_exit();
+      // TODO lock_mutex_exit();
       trx_mutex_exit(trx);
     }
   }
 #else
-  lock_mutex_enter();
-||||||| 5b5a5d2584a
-  lock_mutex_enter();
-=======
   /* lock_cancel_waiting_and_release() requires exclusive global latch, and so
   does reading the trx->lock.wait_lock to prevent races with B-tree page
   reorganization */
   locksys::Global_exclusive_latch_guard guard{};
->>>>>>> ps/release-8.0.21-12
 
   trx_mutex_enter(trx);
 #endif /* WITH_WSREP */
@@ -6658,18 +6632,12 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
     err = DB_SUCCESS;
   }
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
   if (!trx->lock.was_chosen_as_wsrep_victim) {
-    lock_mutex_exit();
+    //  TODO  lock_mutex_exit();
     trx_mutex_exit(trx);
   }
 #else
-  lock_mutex_exit();
-||||||| 5b5a5d2584a
-  lock_mutex_exit();
-=======
->>>>>>> ps/release-8.0.21-12
   trx_mutex_exit(trx);
 #endif /* WITH_WSREP */
 

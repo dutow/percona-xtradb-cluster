@@ -1927,26 +1927,17 @@ ulint thd_start_time_in_secs(THD *thd) /*!< in: thread handle, or NULL */
 
 /** Enter InnoDB engine after checking the max number of user threads
 allowed, else the thread is put into sleep.
-<<<<<<< HEAD
 @param[in,out]	prebuilt	row prebuilt handler */
-static inline void innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt) {
+static inline dberr_t innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt) {
 #ifdef WITH_WSREP
   // innodb_thread_concurreny limit how many thread can work in innodb
   // at any given time. This limit is not applicable to wsrep-applier
   // threads given they are high priority threads.
   if (wsrep_on(prebuilt->trx->mysql_thd) &&
       wsrep_thd_is_BF(prebuilt->trx->mysql_thd, false))
-    return;
+    return DB_SUCCESS;
 #endif /* WITH_WSREP */
 
-||||||| 5b5a5d2584a
-@param[in,out]	prebuilt	row prebuilt handler */
-static inline void innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt) {
-=======
-@param[in,out]	prebuilt	row prebuilt handler
-@return InnoDB error code. */
-static inline dberr_t innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt) {
->>>>>>> ps/release-8.0.21-12
   /* We rely on server to do external_lock(F_UNLCK) to reset the
   srv_conc.n_active counter. */
   if (prebuilt->skip_concurrency_ticket()) {
@@ -2842,13 +2833,13 @@ dberr_t Encryption::set_algorithm(const char *option,
     return (DB_UNSUPPORTED);
 #else
     encryption->m_type = KEYRING;
-<<<<<<< HEAD
 #endif
-||||||| 5b5a5d2584a
-=======
   } else if (innobase_strcasecmp(option, "ONLINE_TO_KEYRING") == 0) {
+#ifdef WITH_WSREP
+    return (DB_UNSUPPORTED);
+#else
     encryption->m_type = KEYRING;
->>>>>>> ps/release-8.0.21-12
+#endif
   } else {
     return (DB_UNSUPPORTED);
   }
@@ -8386,7 +8377,7 @@ uint wsrep_store_key_val_for_row(THD *thd, TABLE *table, uint keynr, char *buff,
       }
       cs = field->charset();
 
-      lenlen = (ulint)(((Field_varstring *)field)->length_bytes);
+      lenlen = (ulint)(((Field_varstring *)field)->get_length_bytes());
 
       data = row_mysql_read_true_varchar(
           &len, (byte *)(record + (ulint)get_field_offset(table, field)),
@@ -9982,7 +9973,6 @@ int ha_innobase::write_row(uchar *record) /*!< in: a row in MySQL format */
     build_template(true);
   }
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
   /* debug sync point has a special significance given the location
   where-in auto-inc value is generated but row insert action is not yet
@@ -9990,16 +9980,11 @@ int ha_innobase::write_row(uchar *record) /*!< in: a row in MySQL format */
   DEBUG_SYNC(m_user_thd, "pxc_autoinc_val_generated");
 #endif /* WITH_WSREP */
 
-  innobase_srv_conc_enter_innodb(m_prebuilt);
-||||||| 5b5a5d2584a
-  innobase_srv_conc_enter_innodb(m_prebuilt);
-=======
   error = innobase_srv_conc_enter_innodb(m_prebuilt);
 
   if (error != DB_SUCCESS) {
     goto report_error;
   }
->>>>>>> ps/release-8.0.21-12
 
   /* Execute insert graph that will result in actual insert. */
   error = row_insert_for_mysql((byte *)record, m_prebuilt);
@@ -10248,7 +10233,7 @@ static int wsrep_calc_row_hash(byte *digest, const uchar *row, TABLE *table,
           1 or 2 bytes */
 
           ptr = row_mysql_read_true_varchar(
-              &len, ptr, (ulint)(((Field_varstring *)field)->length_bytes));
+              &len, ptr, (ulint)(((Field_varstring *)field)->get_length_bytes()));
         }
 
         break;
@@ -24149,7 +24134,7 @@ void wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno) {
 int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
                                 const trx_t *const bf_trx, trx_t *victim_trx,
                                 ibool signal) {
-  ut_ad(lock_mutex_own());
+  // TODO ut_ad(lock_mutex_own());
   // This is there in upstream codership 5.6 but causes
   // crashes, hence disabled
   // ut_ad(trx_mutex_own(victim_trx));
@@ -24250,11 +24235,11 @@ static int wsrep_abort_transaction_func(handlerton *hton, THD *bf_thd,
               wsrep_thd_query(bf_thd), wsrep_thd_query(victim_thd));
 
   if (victim_trx) {
-    lock_mutex_enter();
+    // TODO lock_mutex_enter();
     trx_mutex_enter(victim_trx);
     int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
     trx_mutex_exit(victim_trx);
-    lock_mutex_exit();
+    // TODO lock_mutex_exit();
     wsrep_srv_conc_cancel_wait(victim_trx);
 
     DBUG_RETURN(rcode);

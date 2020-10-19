@@ -7,7 +7,7 @@ if(WITH_GALERA_DEV)
   ProcessorCount(CPU_COUNT)
 
   # Add a custom target for later refreshes
-  ADD_CUSTOM_TARGET(galera ALL scons -j ${CPU_COUNT} tests=0
+  ADD_CUSTOM_TARGET(galera ALL scons -j ${CPU_COUNT} tests=0 debug=0
     COMMAND ${CMAKE_COMMAND} -E copy 
     "${CMAKE_CURRENT_SOURCE_DIR}/percona-xtradb-cluster-galera/garb/garbd"
     "${CMAKE_CURRENT_BINARY_DIR}/runtime_output_directory/garbd"
@@ -50,7 +50,7 @@ if(WITH_PXB_DEV)
 
   ExternalProject_Add(pxb80
     GIT_REPOSITORY https://github.com/percona/percona-xtrabackup.git
-    GIT_TAG percona-xtrabackup-8.0.13
+    GIT_TAG percona-xtrabackup-8.0.14
     GIT_SHALLOW 1
     UPDATE_COMMAND ""
     INSTALL_DIR "${CMAKE_BINARY_DIR}/scripts/pxc_extra/pxb-8.0/"
