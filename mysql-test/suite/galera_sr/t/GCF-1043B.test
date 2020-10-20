@@ -4,7 +4,7 @@
 
 --source include/galera_cluster.inc
 
---let $count = 1000;
+--let $count = 1;
 --let $wsrep_trx_fragment_size = 1;
 --let $query_node_1 = DELETE FROM t1
 --let $query_node_1a = INSERT INTO t1 VALUES (1,'y'),(2,'x')

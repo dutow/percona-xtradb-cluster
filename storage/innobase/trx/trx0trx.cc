@@ -2708,7 +2708,7 @@ void wsrep_trx_print_locking(
   ibool newline;
   const char *op_info;
 
-  // TODO ut_ad(lock_mutex_own());
+  ut_ad(locksys::owns_exclusive_global_latch());
   ut_ad(trx->lock.trx_locks.count > 0);
 
   fprintf(f, "TRANSACTION " TRX_ID_FMT, trx->id);

@@ -874,7 +874,8 @@ MY_NODISCARD static const lock_t *lock_rec_other_has_expl_req(
 
 #ifdef WITH_WSREP
 static void wsrep_kill_victim(const trx_t *const trx, const lock_t *lock) {
-  // TODO ut_ad(lock_mutex_own());
+  //ut_ad(locksys::owns_page_shard(block->get_page_id()));
+  //ut_ad(locksys::owns_exclusive_global_latch());
   ut_ad(trx_mutex_own(lock->trx));
 
   /* quit for native mysql */
@@ -945,7 +946,7 @@ static const lock_t *lock_rec_other_has_conflicting(
 
 #ifdef WITH_WSREP
   auto lock = Lock_iter::for_each(rec_id, [=](const lock_t *lock) {
-    if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+  if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
       if (wsrep_on(trx->mysql_thd)) {
         trx_mutex_enter(lock->trx);
         wsrep_kill_victim(trx, lock);
@@ -6605,11 +6606,10 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
     this gap it can cause trx mutex to not get released.
     This issue is now addressed by ensuring additional check below
     post acquiring trx_mutex. */
-    // TODO lock_mutex_enter();
+    locksys::Global_exclusive_latch_guard guard{};
     trx_mutex_enter(trx);
 
     if (trx->lock.was_chosen_as_wsrep_victim) {
-      // TODO lock_mutex_exit();
       trx_mutex_exit(trx);
     }
   }
@@ -6634,7 +6634,6 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
 
 #ifdef WITH_WSREP
   if (!trx->lock.was_chosen_as_wsrep_victim) {
-    //  TODO  lock_mutex_exit();
     trx_mutex_exit(trx);
   }
 #else

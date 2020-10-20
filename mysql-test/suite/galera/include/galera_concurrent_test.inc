@@ -73,6 +73,8 @@ while ($i)
 	        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
 	        --reap
 	}
+  --connection node_1
+  SHOW PROCESSLIST;
 
         --connection node_2
         --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
