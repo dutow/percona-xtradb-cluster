@@ -7,7 +7,7 @@ if(WITH_GALERA_DEV)
   ProcessorCount(CPU_COUNT)
 
   # Add a custom target for later refreshes
-  ADD_CUSTOM_TARGET(galera ALL scons -j ${CPU_COUNT} tests=0 debug=0
+  ADD_CUSTOM_TARGET(galera ALL scons -j ${CPU_COUNT} tests=0 debug=0 psi=1
     COMMAND ${CMAKE_COMMAND} -E copy 
     "${CMAKE_CURRENT_SOURCE_DIR}/percona-xtradb-cluster-galera/garb/garbd"
     "${CMAKE_CURRENT_BINARY_DIR}/runtime_output_directory/garbd"

@@ -7695,8 +7695,25 @@ static uint kill_one_thread(THD *thd, my_thread_id id, bool only_kill_query) {
         if (tmp->is_system_user() && !thd->is_system_user()) {
           error = ER_KILL_DENIED_ERROR;
         } else {
+#ifdef WITH_WSREP
+	  DEBUG_SYNC(thd, "before_awake_no_mutex");
+	  if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id())
+	  {
+	    /* victim is in hit list already, bail out */
+	    WSREP_DEBUG("victim has wsrep aborter: %u, skipping awake()",
+			tmp->wsrep_aborter);
+	    error = 0;
+	  }
+	  else
+	  {
+	    WSREP_DEBUG("kill_one_thread victim: %u aborter %u kill query %d",
+			id, tmp->wsrep_aborter, only_kill_query);
+#endif /* WITH_WSREP */
           tmp->awake(only_kill_query ? THD::KILL_QUERY : THD::KILL_CONNECTION);
           error = 0;
+#ifdef WITH_WSREP
+	  }
+#endif /* WITH_WSREP */
         }
       } else
         error = 0;
@@ -7714,6 +7731,7 @@ static void wsrep_prepare_for_autocommit_retry(THD *thd, const char *rawbuf,
                                                uint length,
                                                Parser_state *parser_state) {
   thd->clear_error();
+  thd->wsrep_aborter = 0;
   close_thread_tables(thd);
   /* Ensure the gtid is resetted on query retry so retry attempt operates
   with same flow as normal attempt waiting for sync_wait if needed. */

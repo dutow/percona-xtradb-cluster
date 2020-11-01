@@ -4,6 +4,7 @@
 [mysqld]
 default-storage-engine=InnoDB
 mysqlx=0
+wsrep_debug=1
 
 [mysqld.1]
 log-bin=mysqld-bin

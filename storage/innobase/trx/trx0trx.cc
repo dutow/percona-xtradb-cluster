@@ -247,6 +247,11 @@ static void trx_init(trx_t *trx) {
 
     trx->in_innodb &= TRX_FORCE_ROLLBACK_MASK;
   }
+#ifdef WITH_WSREP
+  query_id_t	query_id = trx->wsrep_killed_by_query;
+  os_compare_and_swap_thread_id(&trx->wsrep_killed_by_query, query_id, 0);
+  trx->wsrep_UK_scan = false;
+#endif /* WITH_WSREP */
 
   trx->flush_observer = nullptr;
 
@@ -388,6 +393,11 @@ struct TrxFactory {
     ut_ad(!trx->abort);
 
     ut_ad(trx->killed_by == 0);
+
+#ifdef WITH_WSREP
+    ut_ad(trx->wsrep_killed_by_query == 0);
+    ut_ad(trx->wsrep_UK_scan == false);
+#endif /* WITH_WSREP */
 
     return (true);
   }
@@ -691,6 +701,10 @@ void trx_disconnect_prepared(trx_t *trx) {
 /** Free a transaction object for MySQL.
 @param[in,out]	trx	transaction */
 void trx_free_for_mysql(trx_t *trx) {
+#ifdef WITH_WSREP
+  /* for sanity, this may not have been cleared yet */
+  trx->wsrep_killed_by_query = 0;
+#endif /* WITH_WSREP */
   trx_disconnect_plain(trx);
   trx_free_for_background(trx);
 }
@@ -3581,6 +3595,9 @@ void trx_kill_blocking(trx_t *trx) {
   }
   hit_list_t hit_list;
   lock_make_trx_hit_list(trx, hit_list);
+#ifdef WITH_WSREP
+  if (wsrep_debug) ib::info() << "trx_kill_blocking";
+#endif /* WITH_WSREP */
   if (hit_list.empty()) {
     DBUG_VOID_RETURN;
   }
@@ -3671,6 +3688,13 @@ void trx_kill_blocking(trx_t *trx) {
       srv_conc_force_enter_innodb(trx);
       trx_mutex_enter(victim_trx);
     }
+
+#ifdef WITH_WSREP
+    victim_trx->in_innodb &= ~TRX_FORCE_ROLLBACK_ASYNC;
+    victim_trx->in_innodb &= ~TRX_FORCE_ROLLBACK;
+    trx_mutex_exit(victim_trx);
+    continue;
+#endif
 
     /* Compare the version to check if the transaction has
     already finished */

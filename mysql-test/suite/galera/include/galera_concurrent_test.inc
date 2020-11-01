@@ -65,19 +65,17 @@ while ($i)
 	--send_eval $query_node_2
 
         --connection node_1
-        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+        --error 0,ER_ERROR_DURING_COMMIT,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
 	--reap
 
 	--connection node_1a
         if ($query_node_1a) {
-	        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+	        --error 0,ER_ERROR_DURING_COMMIT,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
 	        --reap
 	}
-  --connection node_1
-  SHOW PROCESSLIST;
 
         --connection node_2
-        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+        --error 0,ER_ERROR_DURING_COMMIT,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
         --reap
         --dec $i
 }

@@ -39,6 +39,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <memory>
 #include <vector>
 
 #include "btr0btr.h"
@@ -873,27 +874,27 @@ MY_NODISCARD static const lock_t *lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-static void wsrep_kill_victim(const trx_t *const trx, const lock_t *lock) {
-  //ut_ad(locksys::owns_page_shard(block->get_page_id()));
-  //ut_ad(locksys::owns_exclusive_global_latch());
-  ut_ad(trx_mutex_own(lock->trx));
+static bool
+wsrep_kill_victim(const trx_t * const trx, trx_t *victim_trx) {
+  fprintf(stderr, "KILLINGKILLING\n");
+  ut_ad(trx_mutex_own(victim_trx));
 
   /* quit for native mysql */
-  if (!wsrep_on(trx->mysql_thd)) return;
+  if (!wsrep_on(trx->mysql_thd)) return false;
 
   if (!wsrep_thd_is_BF(trx->mysql_thd, false)) {
-    return;
+    return false;
   }
 
-  bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, true);
+  bool bf_other = wsrep_thd_is_BF(victim_trx->mysql_thd, true);
 
   if ((!bf_other) ||
-      wsrep_thd_order_before(trx->mysql_thd, lock->trx->mysql_thd)) {
-    if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+      wsrep_thd_order_before(trx->mysql_thd, victim_trx->mysql_thd)) {
+    if (victim_trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
       WSREP_DEBUG("WSREP: BF victim waiting\n");
       /* cannot release lock, until our lock
       is in the queue*/
-    } else if (lock->trx != trx) {
+    } else if (victim_trx != trx) {
       if (wsrep_log_conflicts) {
         ib::info() << "*** Priority TRANSACTION:";
         wsrep_trx_print_locking(stderr, trx, 3000);
@@ -903,22 +904,27 @@ static void wsrep_kill_victim(const trx_t *const trx, const lock_t *lock) {
         } else {
           ib::info() << "*** Victim TRANSACTION:";
         }
-        wsrep_trx_print_locking(stderr, lock->trx, 3000);
+        wsrep_trx_print_locking(stderr, victim_trx, 3000);
         ib::info() << "*** WAITING FOR THIS LOCK TO BE GRANTED:";
 
-        if (lock_get_type(lock) == LOCK_REC) {
-          lock_rec_print(stderr, lock);
+#ifdef OUT
+        if (lock_get_type(victim_trx->lock) == LOCK_REC) {
+          lock_rec_print(stderr, victim_trx->lock);
         } else {
-          lock_table_print(stderr, lock);
+          lock_table_print(stderr, victim_trx->lock);
         }
+#endif
 
         ib::info() << " SQL1: " << wsrep_thd_query(trx->mysql_thd);
-        ib::info() << " SQL2: " << wsrep_thd_query(lock->trx->mysql_thd);
+        ib::info() << " SQL2: " << wsrep_thd_query(victim_trx->mysql_thd);
       }
-      wsrep_innobase_kill_one_trx(trx->mysql_thd, (const trx_t *)trx, lock->trx,
-                                  true);
+      if(wsrep_innobase_kill_one_trx(trx->mysql_thd, (const trx_t *)trx, victim_trx,
+                                  true)) {
+        return true;
+      }
     }
   }
+  return false;
 }
 #endif /* WITH_WSREP */
 
@@ -944,25 +950,9 @@ static const lock_t *lock_rec_other_has_conflicting(
   RecID rec_id{block, heap_no};
   const bool is_supremum = rec_id.is_supremum();
 
-#ifdef WITH_WSREP
-  auto lock = Lock_iter::for_each(rec_id, [=](const lock_t *lock) {
-  if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
-      if (wsrep_on(trx->mysql_thd)) {
-        trx_mutex_enter(lock->trx);
-        wsrep_kill_victim(trx, lock);
-        trx_mutex_exit(lock->trx);
-      }
-      return (false);
-    }
-    return (true);
-  });
-
-  return (lock);
-#else
   return (Lock_iter::for_each(rec_id, [=](const lock_t *lock) {
-    return (!(lock_rec_has_to_wait(trx, mode, lock, is_supremum)));
+    return (!(lock_rec_has_to_wait(false, trx, mode, lock, is_supremum)));
   }));
-#endif /* WITH_WSREP */
 }
 
 /** Checks if some transaction has an implicit x-lock on a record in a secondary
@@ -1356,13 +1346,22 @@ static void lock_mark_trx_for_rollback(hit_list_t &hit_list, trx_id_t hp_trx_id,
   ut_ad(trx_mutex_own(trx));
   ut_ad(!(trx->in_innodb & TRX_FORCE_ROLLBACK));
   ut_ad(!(trx->in_innodb & TRX_FORCE_ROLLBACK_ASYNC));
+#ifdef WITH_WSREP
+  /* only background threads may not be BF aborted in commit phase */
+  if (!trx->mysql_thd) {
+#endif /* WITH_WSREP */
   ut_ad(!(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE));
+#ifdef WITH_WSREP
+  }
+#endif /* WITH_WSREP */
 
   /* Note that we will attempt an async rollback. The _ASYNC
   flag will be cleared if the transaction is rolled back
   synchronously before we get a chance to do it. */
 
+#ifndef WITH_WSREP
   trx->in_innodb |= TRX_FORCE_ROLLBACK | TRX_FORCE_ROLLBACK_ASYNC;
+#endif /* WITH_WSREP */
 
   bool cas;
   os_thread_id_t thread_id = os_thread_get_curr_id();
@@ -2115,14 +2114,40 @@ void lock_make_trx_hit_list(trx_t *hp_trx, hit_list_t &hit_list) {
         abort by some other transaction or if ASYNC rollback is
         disabled. A transaction must complete kill/abort of a
         victim transaction once marked and added to hit list. */
+#ifdef WITH_WSREP
+        if ((trx_is_high_priority(trx) && // !wsrep_thd_is_async_slave(trx->mysql_thd) &&
+             wsrep_thd_order_before(trx->mysql_thd, hp_trx->mysql_thd)) ||
+#else
         if (trx_is_high_priority(trx) ||
+#endif
             (trx->in_innodb & TRX_FORCE_ROLLBACK) != 0 ||
             (trx->in_innodb & TRX_FORCE_ROLLBACK_ASYNC) != 0 ||
+#ifdef WITH_WSREP
+            trx->abort) {
+#else
             (trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE) != 0 || trx->abort) {
+#endif
           trx_mutex_exit(trx);
 
+#ifdef WITH_WSREP
+              if (wsrep_debug)
+                ib::info() << "hit list skip, BF order before " <<
+                  wsrep_thd_order_before(trx->mysql_thd, hp_trx->mysql_thd) <<
+                  " is BF " << trx_is_high_priority(trx) <<
+                  " is aborted " << trx->abort <<
+                  " innodb rollback " <<  (trx->in_innodb & TRX_FORCE_ROLLBACK);
+#endif /* WITH_WSREP */
           return true;
         }
+#ifdef WITH_WSREP
+        if (wsrep_kill_victim(hp_trx, trx)) {
+            if (wsrep_debug)
+                ib::info() << "BF abort skipped for " << trx->id;
+
+            trx_mutex_exit(trx);
+            return true;
+        }
+#endif /* WITH_WSREP */
 
         /* If the transaction is waiting on some other resource then
         wake it up with DEAD_LOCK error so that it can rollback. */
@@ -3817,7 +3842,7 @@ const lock_t *lock_table_other_has_incompatible(
        lock = UT_LIST_GET_PREV(tab_lock.locks, lock)) {
     if (lock->trx != trx && !lock_mode_compatible(lock_get_mode(lock), mode) &&
         (wait || !lock_get_wait(lock))) {
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
       if (wsrep_on(trx->mysql_thd)) {
         if (wsrep_debug) ib::info() << "WSREP: table lock abort";
         trx_mutex_enter(lock->trx);
@@ -5413,7 +5438,7 @@ static void rec_queue_validate_latched(const buf_block_t *block,
                                impl_trx)) {
           ib::info() << "WSREP impl BF lock conflict";
         }
-        ut_a(lock_get_wait(other_lock));
+        //ut_a(lock_get_wait(other_lock));
         ut_a(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
                                impl_trx));
 #endif /* WITH_WSREP */
@@ -6528,6 +6553,18 @@ void lock_trx_release_locks(trx_t *trx) /*!< in/out: transaction */
 
   trx_mutex_enter(trx);
 
+#ifdef WITH_WSREP
+  /* If the trx releasing locks is local streaming transaction and it is rolling
+  back, call wsrep_handle_SR_rollback() to ensure that the rollback fragment
+  gets replicated before any of the locks is released. */
+  if (wsrep_on(trx->mysql_thd) &&
+      wsrep_thd_is_local(trx->mysql_thd) &&
+      wsrep_thd_is_SR(trx->mysql_thd) &&
+      trx->lock.que_state == TRX_QUE_ROLLING_BACK) {
+    wsrep_handle_SR_rollback(NULL, trx->mysql_thd);
+  }
+#endif /* WITH_WSREP */
+
   check_trx_state(trx);
   ut_ad(trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 
@@ -6598,29 +6635,12 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
 {
   dberr_t err;
 
-#ifdef WITH_WSREP
-  /* We already own mutexes. */
-  if (!trx->lock.was_chosen_as_wsrep_victim) {
-    /* There is this gap between checking was_chosen_as_wsrep_victim value
-    and acquiring trx_mutex. If was_chosen_as_wsrep_victim is set between
-    this gap it can cause trx mutex to not get released.
-    This issue is now addressed by ensuring additional check below
-    post acquiring trx_mutex. */
-    locksys::Global_exclusive_latch_guard guard{};
-    trx_mutex_enter(trx);
-
-    if (trx->lock.was_chosen_as_wsrep_victim) {
-      trx_mutex_exit(trx);
-    }
-  }
-#else
   /* lock_cancel_waiting_and_release() requires exclusive global latch, and so
   does reading the trx->lock.wait_lock to prevent races with B-tree page
   reorganization */
   locksys::Global_exclusive_latch_guard guard{};
 
   trx_mutex_enter(trx);
-#endif /* WITH_WSREP */
 
   if (trx->lock.was_chosen_as_deadlock_victim) {
     err = DB_DEADLOCK;
@@ -6632,13 +6652,7 @@ dberr_t lock_trx_handle_wait(trx_t *trx) /*!< in/out: trx lock state */
     err = DB_SUCCESS;
   }
 
-#ifdef WITH_WSREP
-  if (!trx->lock.was_chosen_as_wsrep_victim) {
-    trx_mutex_exit(trx);
-  }
-#else
   trx_mutex_exit(trx);
-#endif /* WITH_WSREP */
 
   return (err);
 }

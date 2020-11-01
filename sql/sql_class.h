@@ -2952,6 +2952,9 @@ class THD : public MDL_context_owner,
 
   bool wsrep_skip_wsrep_GTID;
 
+  /* thread who has started kill for this THD */
+  my_thread_id              wsrep_aborter;
+
   /**
     Skip registering wsrep_hton handler for a DDL statement that got skipped
     from TOI replication probably due to sql_log_bin=0.

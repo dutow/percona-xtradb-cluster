@@ -24137,7 +24137,7 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
   //ut_ad(locksys::owns_exclusive_global_latch());
   // This is there in upstream codership 5.6 but causes
   // crashes, hence disabled
-  // ut_ad(trx_mutex_own(victim_trx));
+  ut_ad(trx_mutex_own(victim_trx));
   ut_ad(bf_thd_ptr);
   ut_ad(victim_trx);
 
@@ -24165,9 +24165,13 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
       " aborting Victim thread %u with transaction (%llu)",
       wsrep_thd_thread_id(bf_thd), (long long)bf_seqno,
       wsrep_thd_thread_id(thd), (long long)victim_trx->id);
-
-  WSREP_DEBUG("Aborting query: %s",
-              (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
+/*
+  WSREP_DEBUG("Aborting query: %s conf %s trx: %ld trx %lu state: %d",
+              (thd && wsrep_thd_query(thd, false)) ? wsrep_thd_query(thd, false) : "void",
+              wsrep_thd_transaction_state_str(thd),
+              wsrep_thd_transaction_id(thd),
+              victim_trx->id, victim_trx->state);
+              */
 
   DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock", {
     const char act[] =
@@ -24181,13 +24185,26 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
    * which is already marked as BF victim
    * lock_sys is held until this vicitm has aborted
    */
+  
   victim_trx->lock.was_chosen_as_wsrep_victim = true;
+  
+  if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
+  {
+    WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
+    wsrep_thd_UNLOCK(thd);
+    return (false);
+  }
 
   wsrep_thd_UNLOCK(thd);
 
   if (wsrep_thd_bf_abort(bf_thd, thd, signal)) {
     if (victim_trx->lock.wait_lock) {
       WSREP_DEBUG("victim has wait flag: %lu", thd_get_thread_id(thd));
+      /* lock_cancel_waiting_and_release() requires exclusive global latch, and so
+         does reading the trx->lock.wait_lock to prevent races with B-tree page
+         reorganization
+      */
+      locksys::Global_exclusive_latch_guard guard{};
       lock_t *wait_lock = victim_trx->lock.wait_lock;
 
       if (wait_lock) {
@@ -24196,6 +24213,16 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
         lock_cancel_waiting_and_release(wait_lock);
       }
     }
+  } else {
+    
+    wsrep_thd_LOCK(thd);
+    victim_trx->lock.was_chosen_as_deadlock_victim = false;
+    victim_trx->lock.was_chosen_as_wsrep_victim = false;
+    wsrep_thd_set_wsrep_aborter(nullptr, thd);
+    wsrep_thd_UNLOCK(thd);
+
+    WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim will survive");
+
   }
 
   DBUG_RETURN(0);
@@ -24235,9 +24262,9 @@ static int wsrep_abort_transaction_func(handlerton *hton, THD *bf_thd,
               wsrep_thd_query(bf_thd), wsrep_thd_query(victim_thd));
 
   if (victim_trx) {
-    locksys::Global_exclusive_latch_guard guard{};
+    int rcode = 0;
     trx_mutex_enter(victim_trx);
-    int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
+    rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
     trx_mutex_exit(victim_trx);
     wsrep_srv_conc_cancel_wait(victim_trx);
 

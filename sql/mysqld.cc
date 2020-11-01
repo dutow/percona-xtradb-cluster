@@ -9724,6 +9724,7 @@ static int init_wsrep_thread(THD *thd) {
 #if !defined(DBUG_OFF)
   int simulate_error = 0;
 #endif
+  thd->thd_tx_priority = 1;  
   thd->system_thread = SYSTEM_THREAD_SLAVE_WORKER;
 
   thd->security_context()->skip_grants();
