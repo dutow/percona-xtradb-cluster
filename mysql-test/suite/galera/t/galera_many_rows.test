@@ -3,6 +3,11 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+set global wsrep_debug=1;
+--connection node_2
+set global wsrep_debug=1;
+
+--connection node_1
 SET SESSION innodb_lock_wait_timeout=600;
 SET SESSION lock_wait_timeout=600;
 
@@ -21,13 +26,28 @@ SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT1H';
 
 SELECT COUNT(*) = 100000 FROM t1;
 INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+SELECT COUNT(*) = 200000 FROM t1;
 
 --connection node_1
 SELECT COUNT(*) = 200000 FROM t1;
 UPDATE t1 SET f2 = 1;
 
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--sleep 5
+SHOW FULL PROCESSLIST;
+
 --connection node_2
-SELECT COUNT(*) = 200000 FROM t1 WHERE f2 = 1;
+--send SELECT COUNT(*) = 200000 FROM t1 WHERE f2 = 1;
+
+--connection node_2a
+--sleep 5
+SHOW FULL PROCESSLIST;
+--sleep 200
+SHOW FULL PROCESSLIST;
+
+--connection node_2
+--reap
 
 --connection node_1
 START TRANSACTION;

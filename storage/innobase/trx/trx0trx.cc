@@ -1631,11 +1631,31 @@ static bool trx_write_serialisation_history(
     skip updating wsrep co-ordinates. */
   if (wsrep_is_wsrep_xid(trx->xid) && trx->mysql_thd &&
       wsrep_safe_to_persist_xid(trx->mysql_thd)) {
-    trx_sys_update_wsrep_checkpoint(trx->xid, sys_header, mtr);
+    if (trx->lock.was_chosen_as_wsrep_victim)
+    {
+#ifdef UNIV_DEBUG
+      ib::info() << "trx->lock_was_chosen_as_wsrep_victim is on, "
+                 << "skipping wsrep XID update";
+#endif /* UNIV_DEBUG */
+    }
+    else
+    {
+      trx_sys_update_wsrep_checkpoint(trx->xid, sys_header, mtr);
+    }
   } else if (trx->wsrep_recover_xid &&
              wsrep_is_wsrep_xid(trx->wsrep_recover_xid)) {
-    trx_sys_update_wsrep_checkpoint(trx->wsrep_recover_xid, sys_header, mtr,
+    if (trx->lock.was_chosen_as_wsrep_victim)
+    {
+#ifdef UNIV_DEBUG
+      ib::info() << "trx->lock_was_chosen_as_wsrep_victim is on, "
+                 << "skipping wsrep XID update";
+#endif /* UNIV_DEBUG */
+    }
+    else
+    {
+      trx_sys_update_wsrep_checkpoint(trx->wsrep_recover_xid, sys_header, mtr,
                                     true);
+    }
   }
 
   trx->wsrep_recover_xid = NULL;
@@ -3595,12 +3615,12 @@ void trx_kill_blocking(trx_t *trx) {
   }
   hit_list_t hit_list;
   lock_make_trx_hit_list(trx, hit_list);
-#ifdef WITH_WSREP
-  if (wsrep_debug) ib::info() << "trx_kill_blocking";
-#endif /* WITH_WSREP */
   if (hit_list.empty()) {
     DBUG_VOID_RETURN;
   }
+#ifdef WITH_WSREP
+  if (wsrep_debug) ib::info() << "trx_kill_blocking";
+#endif /* WITH_WSREP */
 
   DEBUG_SYNC_C("trx_kill_blocking_enter");
 

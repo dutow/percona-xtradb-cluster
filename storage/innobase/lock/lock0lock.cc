@@ -6553,7 +6553,7 @@ void lock_trx_release_locks(trx_t *trx) /*!< in/out: transaction */
 
   trx_mutex_enter(trx);
 
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
   /* If the trx releasing locks is local streaming transaction and it is rolling
   back, call wsrep_handle_SR_rollback() to ensure that the rollback fragment
   gets replicated before any of the locks is released. */
