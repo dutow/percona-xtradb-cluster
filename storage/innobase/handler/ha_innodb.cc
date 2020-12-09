@@ -24175,7 +24175,7 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
                                 ibool signal) {
   // This is there in upstream codership 5.6 but causes
   // crashes, hence disabled
-  // ut_ad(trx_mutex_own(victim_trx));
+  ut_ad(trx_mutex_own(victim_trx));
   ut_ad(bf_thd_ptr);
   ut_ad(victim_trx);
 
@@ -24220,7 +24220,6 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
    * lock_sys is held until this vicitm has aborted
    */
   victim_trx->lock.was_chosen_as_wsrep_victim = true;
-  
   if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
   {
     WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
@@ -24233,6 +24232,8 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
   if (wsrep_thd_bf_abort(bf_thd, thd, signal)) {
     if (victim_trx->lock.wait_lock) {
       WSREP_DEBUG("victim has wait flag: %lu", thd_get_thread_id(thd));
+      DEBUG_SYNC(thd, "innobase_kill_one_trx_before_global_latch");
+      trx_mutex_exit(victim_trx);
       /* lock_cancel_waiting_and_release() requires exclusive global latch, and so
          does reading the trx->lock.wait_lock to prevent races with B-tree page
          reorganization
@@ -24245,6 +24246,7 @@ int wsrep_innobase_kill_one_trx(void *const bf_thd_ptr,
         victim_trx->lock.was_chosen_as_deadlock_victim = TRUE;
         lock_cancel_waiting_and_release(wait_lock);
       }
+      trx_mutex_enter(victim_trx);
     }
   } else {
     

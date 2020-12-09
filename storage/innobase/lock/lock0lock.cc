@@ -4480,7 +4480,7 @@ static void lock_release(trx_t *trx) {
   ut_ad(!trx_mutex_own(trx));
   ut_ad(!trx->is_dd_trx);
 
-  locksys::Global_shared_latch_guard shared_latch_guard{};
+  locksys::Global_shared_latch_guard shared_latch_guard{}; // !
   /* In order to access trx->lock.trx_locks safely we need to hold trx->mutex.
   The transaction is already in TRX_STATE_COMMITTED_IN_MEMORY state and is no
   longer referenced, so we are not afraid of implicit-to-explicit conversions,
