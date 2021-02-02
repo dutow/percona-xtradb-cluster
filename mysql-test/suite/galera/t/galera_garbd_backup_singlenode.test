@@ -1,0 +1,19 @@
+#
+# Test the sst receiver-function capability of garbd.
+#
+
+--let $galera_cluster_size = 1
+
+--source include/galera_cluster.inc
+
+--connection node_1
+--exec `dirname $WSREP_PROVIDER`/../bin/garbd --sst="xtrabackup-v2:127.0.0.1:9998/xtrabackup_sst//1" --donor node1 --recv-script="sleep 5 && killall -9 garbd" --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'evs.inactive_timeout=PT6S;base_port=$NODE_GALERAPORT_3;pc.weight=0' > $MYSQLTEST_VARDIR/tmp/garbd5.log 2>&1  || exit 0
+
+SELECT 1;
+
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd.log  
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd2.log  
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd3.log  
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd4.log  
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd5.log  
+#--remove_file $MYSQLTEST_VARDIR/tmp/garbd3.pid  

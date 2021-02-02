@@ -35,6 +35,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <regex>
+
+#include <valgrind/callgrind.h>
 
 #include "my_config.h"
 #ifdef HAVE_LSAN_DO_RECOVERABLE_LEAK_CHECK
@@ -1759,6 +1762,23 @@ static void check_secondary_engine_statement(THD *thd,
                                    query_length);
 }
 
+struct callgrind_raii{
+  bool toggle_;
+  callgrind_raii(bool toggle) : toggle_(toggle) {
+    if(toggle_) {
+      fprintf(stderr, "Callgrind is on!\n");
+      CALLGRIND_TOGGLE_COLLECT;
+    }
+  }
+
+  ~callgrind_raii() {
+    if(toggle_) {
+      fprintf(stderr, "Callgrind is off!\n");
+      CALLGRIND_TOGGLE_COLLECT;
+    }
+  }
+};
+
 /**
   Perform one connection-level (COM_XXXX) command.
 
@@ -1779,6 +1799,17 @@ static void check_secondary_engine_statement(THD *thd,
 */
 bool dispatch_command(THD *thd, const COM_DATA *com_data,
                       enum enum_server_command command) {
+  fprintf(stderr, "QQ: %s\n", com_data->com_query.query);
+
+  const char* query = com_data->com_query.query;
+  std::regex re(".*index_t1_on_c_id.*");
+  std::cmatch m;
+  const bool matches = std::regex_match(query, m, re);
+
+  fprintf(stderr, "QQQQ %u\n", matches);
+
+  callgrind_raii cg_guard{matches};
+
   bool error = false;
   Global_THD_manager *thd_manager = Global_THD_manager::get_instance();
   DBUG_TRACE;

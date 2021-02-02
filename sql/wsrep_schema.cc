@@ -786,6 +786,7 @@ out:
   thd->mdl_context.release_transactional_locks();
 
   thd->variables.wsrep_sync_wait = wsrep_sync_wait_saved;
+  fprintf(stderr, "REEST %u\n", wsrep_sync_wait_saved);
 
   if (0 == ret) {
     Wsrep_view ret_view(wsrep::gtid(cluster_uuid, Wsrep_seqno(view_seqno)),

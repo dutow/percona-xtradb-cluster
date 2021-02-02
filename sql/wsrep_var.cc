@@ -159,10 +159,12 @@ bool wsrep_on_update(sys_var *, THD *thd, enum_var_type) {
 
 bool wsrep_causal_reads_update(sys_var *, THD *thd, enum_var_type) {
   if (thd->variables.wsrep_causal_reads) {
+    fprintf(stderr, "WTF1\n");
     thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
   } else {
     thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
+    fprintf(stderr, "WWWW %u\n", thd->variables.wsrep_sync_wait);
 
   // update global settings too.
   if (global_system_variables.wsrep_causal_reads) {
@@ -170,16 +172,19 @@ bool wsrep_causal_reads_update(sys_var *, THD *thd, enum_var_type) {
   } else {
     global_system_variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
+    fprintf(stderr, "WWWW %u\n", global_system_variables.wsrep_sync_wait);
   return false;
 }
 
 bool wsrep_sync_wait_update(sys_var *, THD *thd, enum_var_type) {
   thd->variables.wsrep_causal_reads =
       thd->variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ;
+    fprintf(stderr, "WWWX %u\n", thd->variables.wsrep_sync_wait);
 
   // update global settings too
   global_system_variables.wsrep_causal_reads =
       global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ;
+    fprintf(stderr, "WWWX %u\n", global_system_variables.wsrep_sync_wait);
   return false;
 }
 

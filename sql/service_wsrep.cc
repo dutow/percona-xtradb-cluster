@@ -97,6 +97,7 @@ extern "C" bool wsrep_thd_is_in_rsu(const THD *thd) {
 
 extern "C" bool wsrep_thd_is_BF(const THD *thd, bool sync) {
   bool status = false;
+  //return false;
   if (thd && WSREP(thd)) {
     if (sync)
       mysql_mutex_lock(const_cast<mysql_mutex_t *>(&thd->LOCK_wsrep_thd));

@@ -1949,7 +1949,7 @@ static inline dberr_t innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt) {
   // innodb_thread_concurreny limit how many thread can work in innodb
   // at any given time. This limit is not applicable to wsrep-applier
   // threads given they are high priority threads.
-  if (wsrep_on(prebuilt->trx->mysql_thd) &&
+  if (false && wsrep_on(prebuilt->trx->mysql_thd) &&
       wsrep_thd_is_BF(prebuilt->trx->mysql_thd, false))
     return DB_SUCCESS;
 #endif /* WITH_WSREP */

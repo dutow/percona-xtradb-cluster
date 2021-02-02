@@ -8,6 +8,7 @@ mysqlx=0
 [mysqld.1]
 log-bin=mysqld-bin
 binlog-format=row
+wsrep_debug=1
 
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://'

@@ -11,9 +11,9 @@ SST_FAILED=0
 function handle_sigint() {
   if (( $FIRST_RECEIVED == 0 )); then
     echo "SST request failed"
-    SST_FAILED=1
     kill $(ps -s $$ -o pid=)
   fi
+  SST_FAILED=1
 }
 
 trap 'handle_sigint' 2
@@ -26,6 +26,7 @@ wait $!
 FIRST_RECEIVED=1
 if (( $SST_FAILED == 0 )); then
   echo 2
+  sleep 1
   (socat TCP-LISTEN:$1 - > /dev/null) &
   wait $!
   echo 3
