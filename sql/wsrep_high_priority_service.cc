@@ -210,6 +210,12 @@ const wsrep::transaction &Wsrep_high_priority_service::transaction() const {
   DBUG_RETURN(m_thd->wsrep_trx());
 }
 
+int Wsrep_high_priority_service::next_fragment(const wsrep::ws_meta& ws_meta)
+{
+  DBUG_ENTER(" Wsrep_high_priority_service::next_fragment");
+  DBUG_RETURN(m_thd->wsrep_cs().next_fragment(ws_meta));
+}
+
 int Wsrep_high_priority_service::adopt_transaction(
     const wsrep::transaction &transaction) {
   DBUG_ENTER(" Wsrep_high_priority_service::adopt_transaction");
@@ -225,9 +231,11 @@ int Wsrep_high_priority_service::adopt_transaction(
   DBUG_RETURN(ret);
 }
 
-int Wsrep_high_priority_service::append_fragment_and_commit(
-    const wsrep::ws_handle &ws_handle, const wsrep::ws_meta &ws_meta,
-    const wsrep::const_buffer &data) {
+int Wsrep_high_priority_service::append_fragment_and_commit(const wsrep::ws_handle &ws_handle,
+                                 const wsrep::ws_meta & ws_meta,
+                                 const wsrep::const_buffer& data,
+                                 const wsrep::xid& xid WSREP_UNUSED) {
+
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret = start_transaction(ws_handle, ws_meta);
   /*
@@ -638,6 +646,14 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta &ws_meta,
   DBUG_RETURN(ret);
 }
 
+int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta&,
+                                           const wsrep::const_buffer&,
+                                           wsrep::mutable_buffer&)
+{
+  DBUG_ENTER("Wsrep_applier_service::apply_nbo_begin");
+  DBUG_RETURN(0);
+}
+
 void Wsrep_applier_service::after_apply() {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
   wsrep_after_apply(m_thd);
@@ -719,38 +735,29 @@ Wsrep_replayer_service::~Wsrep_replayer_service() {
   THD *replayer_thd = m_thd;
   THD *orig_thd = m_orig_thd;
 
-  /* Store replay result/state to original thread wsrep client
-     state and switch execution context back to original. */
-  if (m_replay_status == wsrep::provider::error_certification_failed) {
-    /* Replay of transaction failed at certification level.
-       This will leave transaction in s_replaying mode.
-       De-attach the transaction from original transaction and proceed. */
-    replayer_thd->wsrep_cs().deattach_after_replay();
-    wsrep_after_command_ignore_result(replayer_thd);
-    wsrep_close(replayer_thd);
-  } else {
-    orig_thd->wsrep_cs().after_replay(replayer_thd->wsrep_trx());
-    wsrep_after_apply(replayer_thd);
-    wsrep_after_command_ignore_result(replayer_thd);
-    wsrep_close(replayer_thd);
-  }
-  replayer_thd->wsrep_replayer = false;
+  /* Switch execution context back to original. */
+  wsrep_after_apply(replayer_thd);
+  wsrep_after_command_ignore_result(replayer_thd);
+  wsrep_close(replayer_thd);
   wsrep_reset_threadvars(replayer_thd);
   wsrep_store_threadvars(orig_thd);
 
-  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
-  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_set());
-
-  if (m_replay_status == wsrep::provider::success) {
+  if (m_replay_status == wsrep::provider::success)
+  {
     DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
-    orig_thd->killed = THD::NOT_KILLED;
+    orig_thd->killed= THD::NOT_KILLED;
     my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
-  } else if (m_replay_status == wsrep::provider::error_certification_failed) {
+  }
+  else if (m_replay_status == wsrep::provider::error_certification_failed)
+  {
     wsrep_override_error(orig_thd, ER_LOCK_DEADLOCK);
-  } else {
+  }
+  else
+  {
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
-                m_replay_status, orig_thd->db().str, WSREP_QUERY(orig_thd));
+                m_replay_status,
+                orig_thd->db().str, WSREP_QUERY(orig_thd));
     unireg_abort(1);
   }
 }

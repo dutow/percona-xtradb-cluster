@@ -144,7 +144,7 @@ void Wsrep_client_service::cleanup_transaction() {
 }
 
 int Wsrep_client_service::prepare_fragment_for_replication(
-    wsrep::mutable_buffer &buffer) {
+    wsrep::mutable_buffer &buffer, size_t& log_position) {
   DBUG_ASSERT(m_thd == current_thd);
   THD *thd = m_thd;
   DBUG_ENTER("Wsrep_client_service::prepare_fragment_for_replication");
@@ -162,7 +162,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
   unsigned char *read_pos = NULL;
   my_off_t read_len = 0;
 
-  if (cache->begin(&read_pos, &read_len, thd->wsrep_sr().bytes_certified())) {
+  if (cache->begin(&read_pos, &read_len, thd->wsrep_sr().log_position())) {
     DBUG_RETURN(1);
   }
 
@@ -186,6 +186,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
     }
   }
   DBUG_ASSERT(total_length == buffer.size());
+  log_position = cache->length();
 cleanup:
   if (cache->truncate(saved_pos)) {
     WSREP_WARN("Failed to reinitialize IO cache");
@@ -236,6 +237,16 @@ void Wsrep_client_service::will_replay() {
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
 }
 
+void Wsrep_client_service::signal_replayed()
+{
+  DBUG_ASSERT(m_thd == current_thd);
+  mysql_mutex_lock(&LOCK_wsrep_replaying);
+  --wsrep_replaying;
+  DBUG_ASSERT(wsrep_replaying >= 0);
+  mysql_cond_broadcast(&COND_wsrep_replaying);
+  mysql_mutex_unlock(&LOCK_wsrep_replaying);
+}
+
 enum wsrep::provider::status Wsrep_client_service::replay() {
   DBUG_ASSERT(m_thd == current_thd);
   DBUG_ENTER("Wsrep_client_service::replay");
@@ -262,11 +273,13 @@ enum wsrep::provider::status Wsrep_client_service::replay() {
 
   delete replayer_thd;
 
-  mysql_mutex_lock(&LOCK_wsrep_replaying);
-  --wsrep_replaying;
-  mysql_cond_broadcast(&COND_wsrep_replaying);
-  mysql_mutex_unlock(&LOCK_wsrep_replaying);
   DBUG_RETURN(ret);
+}
+
+enum wsrep::provider::status Wsrep_client_service::replay_unordered()
+{
+  DBUG_ASSERT(0);
+  return wsrep::provider::error_not_implemented;
 }
 
 void Wsrep_client_service::wait_for_replayers(
@@ -285,6 +298,12 @@ void Wsrep_client_service::wait_for_replayers(
   }
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
   lock.lock();
+}
+
+enum wsrep::provider::status Wsrep_client_service::commit_by_xid()
+{
+  DBUG_ASSERT(0);
+  return wsrep::provider::error_not_implemented;
 }
 
 void Wsrep_client_service::debug_sync(const char *sync_point
