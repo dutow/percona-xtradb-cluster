@@ -582,7 +582,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
     if ((!thd->is_current_stmt_binlog_format_row() ||
          !find_temporary_table(thd, first_table))) {
       if (WSREP(thd) &&
-          wsrep_to_isolation_begin(
+          wsrep_to_isolation_begin( // !!!
               thd, ((thd->lex->name.str) ? thd->lex->select_lex->db : NULL),
               ((thd->lex->name.str) ? thd->lex->name.str : NULL), first_table,
               NULL, &alter_info)) {

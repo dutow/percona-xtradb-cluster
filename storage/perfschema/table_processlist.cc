@@ -167,7 +167,8 @@ int table_processlist::make_row(PFS_thread *pfs) {
   }
 
   /* Ignore background threads. */
-  if (pfs->m_username_length == 0 || pfs->m_processlist_id == 0)
+  // TODO: wsrep thread needs a username length!
+  if (/*pfs->m_username_length == 0 || */pfs->m_processlist_id == 0)
     return HA_ERR_RECORD_DELETED;
 
   m_row.m_processlist_id = pfs->m_processlist_id;
@@ -294,6 +295,7 @@ int table_processlist::make_row(PFS_thread *pfs) {
     }
   } else {
     m_row.m_processlist_state_length = 0;
+    assert(m_row.m_dbname_length == 0);
   }
 
   m_row.m_port = pfs->m_peer_port;

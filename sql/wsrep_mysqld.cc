@@ -2160,6 +2160,196 @@ static void wsrep_TOI_end(THD *thd) {
   }
 }
 
+static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
+                           const TABLE_LIST *table_list,
+                           dd::Tablespace_table_ref_vec *trefs,
+                           Alter_info *alter_info) {
+  uchar *buf(0);
+  size_t buf_len(0);
+  int buf_err;
+  int rc;
+
+  DEBUG_SYNC(thd, "wsrep_TOI_begin_before_wsrep_skip_wsrep_hton");
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+
+  /*
+    If event qualified for TOI replication then it shouldn't go through
+    normal replication. It state is updated to reflect TOI that
+    naturally disallow it from getting registered for normal replication.
+
+    This is true for all cases except when sql_log_bin = 0 that would cause
+    statement to skip TOI and there-by also skip setting of the TOI mode.
+    This flow can cause event to get registered for normal replication.
+
+    Flag (wsrep_skip_wsrep_hton) below help in skipping "TOI qualified but
+    skipped event" from getting registered for normal replication.
+
+    Setting wsrep_skip_wsrep_hton=true has a side-effect that this
+    query/thread cannot be killed.
+  */
+  thd->wsrep_skip_wsrep_hton = true;
+  bool is_thd_killed = thd->is_killed();
+
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  DEBUG_SYNC(thd, "wsrep_NBO_begin_after_wsrep_skip_wsrep_hton");
+
+  if (is_thd_killed) {
+    WSREP_DEBUG(
+        "Can't execute %s in NBO mode because the query has been killed",
+        WSREP_QUERY(thd));
+    return -1;
+  }
+
+  thd->wsrep_skip_wsrep_hton = true;
+  if (wsrep_can_run_in_toi(thd, db_, table_, table_list) == false) {
+    WSREP_DEBUG("Can't execute %s in NBO mode", WSREP_QUERY(thd));
+    return 1;
+  }
+
+  WSREP_DEBUG(
+      "Executing Query (%s) with write-set (%lld) and exec_mode: %s"
+      " in NBO Isolation mode",
+      WSREP_QUERY(thd), (long long)wsrep_thd_trx_seqno(thd),
+      wsrep_thd_client_mode_str(thd));
+
+  buf_err = wsrep_TOI_event_buf(thd, &buf, &buf_len);
+  if (buf_err) {
+    /* Given the existing error handling setup, all errors with write-set
+    are classified under single error code. It would be good to have a proper
+    error code reporting mechanism. */
+    WSREP_WARN(
+        "Append/Write to writeset buffer failed (either due to IO "
+        "issues (including memory allocation) or hitting a configured "
+        "limit viz. write set size, etc.");
+    my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED,
+             "Failed to append TOI write-set");
+    return -1;
+  }
+
+  struct wsrep_buf buff = {buf, buf_len};
+
+  wsrep::key_array key_array =
+      wsrep_prepare_keys_for_toi(db_, table_, table_list, trefs, alter_info);
+
+  THD_STAGE_INFO(thd, stage_wsrep_preparing_for_TO_isolation);
+  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+           "wsrep: initiating NBO for write set (%lld)",
+           (long long)wsrep_thd_trx_seqno(thd));
+  WSREP_DEBUG("%s", thd->wsrep_info);
+  thd_proc_info(thd, thd->wsrep_info);
+
+  wsrep::client_state &cs(thd->wsrep_cs());
+  int ret = cs.begin_nbo_phase_one(
+      key_array, wsrep::const_buffer(buff.ptr, buff.len));
+
+  thd->wsrep_nbo.keys = key_array;
+
+  if (ret) {
+    DBUG_ASSERT(cs.current_error());
+    WSREP_DEBUG("begin_nbo_phase_one() failed for %u: %s, seqno: %lld",
+                thd->thread_id(), WSREP_QUERY(thd),
+                (long long)wsrep_thd_trx_seqno(thd));
+
+    /* jump to error handler in mysql_execute_command() */
+    switch (cs.current_error()) {
+      default:
+        WSREP_WARN(
+            "NBO isolation failed for: %d, schema: %s, sql: %s. "
+            "Check wsrep connection state and retry the query.",
+            ret, (thd->db().str ? thd->db().str : "(null)"), WSREP_QUERY(thd));
+        if (!thd->is_error()) {
+          my_error(ER_LOCK_DEADLOCK, MYF(0),
+                   "WSREP replication failed. Check "
+                   "your wsrep connection state and retry the query.");
+        }
+    }
+    rc = -1;
+  } else {
+    WSREP_DEBUG(
+        "Query (%s) with write-set (%lld) and exec_mode: %s"
+        " replicated in TO Isolation mode",
+        WSREP_QUERY(thd), (long long)wsrep_thd_trx_seqno(thd),
+        wsrep_thd_client_mode_str(thd));
+
+    //THD_STAGE_INFO(thd, stage_wsrep_TO_isolation_initiated);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: TO isolation initiated for write set (%lld)",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    /* DDL transaction are now atomic so append wsrep xid.
+    This will ensure transactions are logged with the given xid. */
+    bool atomic_ddl = is_atomic_ddl(thd, true);
+    if (atomic_ddl) {
+      wsrep_xid_init(thd->get_transaction()->xid_state()->get_xid(),
+                     thd->wsrep_cs().toi_meta().gtid());
+    }
+
+    wsrep::mutable_buffer err;
+    WSREP_DEBUG("Ending NBO phase one");
+    ret = cs.end_nbo_phase_one(err);
+    WSREP_DEBUG("NBO phase one ended");
+    if (ret) {
+      DBUG_ASSERT(cs.current_error());
+      WSREP_DEBUG("end_nbo_phase_one() failed for %u: %s, seqno: %lld",
+                  thd->thread_id(), WSREP_QUERY(thd),
+                  (long long)wsrep_thd_trx_seqno(thd));
+    }
+
+    ++wsrep_to_isolation;
+    rc = 0;
+  }
+
+  if (buf) my_free(buf);
+
+  thd->wsrep_gtid_event_buf_len = 0;
+  thd->wsrep_gtid_event_buf = NULL;
+
+  if (rc) wsrep_TOI_begin_failed(thd, NULL);
+
+  return rc;
+}
+
+static void wsrep_NBO_end(THD *thd) {
+  wsrep_to_isolation--;
+
+  wsrep::client_state &client_state(thd->wsrep_cs());
+  //DBUG_ASSERT(wsrep_thd_is_local_nbo(thd));
+  WSREP_DEBUG("NBO END: %lld: %s", client_state.toi_meta().seqno().get(),
+              WSREP_QUERY(thd));
+
+  THD_STAGE_INFO(thd, stage_wsrep_completed_TO_isolation);
+  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+           "wsrep: completed NBO write set (%lld)",
+           (long long)wsrep_thd_trx_seqno(thd));
+  WSREP_DEBUG("%s", thd->wsrep_info);
+  thd_proc_info(thd, thd->wsrep_info);
+
+  if (wsrep_thd_is_in_nbo(thd)) {
+    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+    wsrep::mutable_buffer err;
+    if (thd->is_error() && !wsrep_must_ignore_error(thd)) {
+      wsrep_store_error(thd, err);
+    }
+    int ret = client_state.begin_nbo_phase_two(thd->wsrep_nbo.keys);
+
+    if (!ret) {
+      WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
+      /* Reset XID on completion of DDL transactions */
+      bool atomic_ddl = is_atomic_ddl(thd, true);
+      if (atomic_ddl) {
+        thd->get_transaction()->xid_state()->get_xid()->reset();
+      }
+    } else {
+      WSREP_WARN("TO isolation end failed for: %d, schema: %s, sql: %s", ret,
+                 (thd->db().str ? thd->db().str : "(null)"), WSREP_QUERY(thd));
+    }
+
+    ret = client_state.end_nbo_phase_two(err);
+  }
+}
+
 static int wsrep_RSU_begin(THD *thd, const char *, const char *) {
   WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
               WSREP_QUERY(thd));
@@ -2269,6 +2459,9 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
       case WSREP_OSU_RSU:
         ret = wsrep_RSU_begin(thd, db_, table_);
         break;
+      case WSREP_OSU_NBO:
+        ret = wsrep_NBO_begin(thd, db_, table_, table_list, trefs, alter_info);
+        break;
       default:
         WSREP_ERROR("Unsupported OSU method: %lu",
                     thd->variables.wsrep_OSU_method);
@@ -2313,6 +2506,9 @@ void wsrep_to_isolation_end(THD *thd) {
   if (wsrep_thd_is_local_toi(thd)) {
     DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
     wsrep_TOI_end(thd);
+  } else if (wsrep_thd_is_in_nbo(thd)) {
+    DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_NBO);
+    wsrep_NBO_end(thd);
   } else if (wsrep_thd_is_in_rsu(thd)) {
     DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_RSU);
     wsrep_RSU_end(thd);
@@ -2508,7 +2704,7 @@ int wsrep_must_ignore_error(THD *thd) {
   const uint flags = sql_command_flags[thd->lex->sql_command];
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT(wsrep_thd_is_toi(thd));
+  //DBUG_ASSERT(wsrep_thd_is_toi(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_DDL))
     goto ignore_error;

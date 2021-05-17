@@ -27,7 +27,7 @@
 #include <mysql/components/service.h>
 #include <functional>
 
-#include <stdint.h>
+#include <cstdint>
 
 #ifdef __cplusplus
 class THD;
@@ -55,7 +55,7 @@ typedef enum { PAGE_TRACK_SE_INNODB = 1 } Page_Track_SE;
   @return Operation status.
 */
 typedef int (*Page_Track_Callback)(MYSQL_THD thd, const unsigned char *buffer,
-                                   size_t buf_len, int num_pages,
+                                   std::size_t buf_len, int num_pages,
                                    void *user_ctx);
 
 BEGIN_SERVICE_DEFINITION(mysql_page_track)
@@ -136,7 +136,7 @@ DECLARE_METHOD(int, purge,
 
 DECLARE_METHOD(int, get_page_ids,
                (MYSQL_THD opaque_thd, Page_Track_SE se_type, uint64_t *start_id,
-                uint64_t *stop_id, unsigned char *buffer, size_t buffer_len,
+                uint64_t *stop_id, unsigned char *buffer, std::size_t buffer_len,
                 Page_Track_Callback cbk_func, void *cbk_ctx));
 
 /**

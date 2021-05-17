@@ -98,6 +98,8 @@ static void wsrep_replication_process(THD *thd,
 
 static bool create_wsrep_THD(PSI_thread_key key, Wsrep_thd_args *args) {
   my_thread_handle hThread;
+  // TODO NEXT: use this instead of std thread!
+  // Or an Srv_session maybe???
   bool res = mysql_thread_create(key, &hThread, &connection_attrib,
                                  start_wsrep_THD, (void *)args);
   return res;

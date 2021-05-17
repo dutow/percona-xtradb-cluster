@@ -8,6 +8,7 @@ mysqlx=0
 [mysqld.1]
 log-bin=mysqld-bin
 binlog-format=row
+wsrep_debug=1
 
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://'
@@ -30,6 +31,7 @@ wsrep_node_name=node1
 [mysqld.2]
 log-bin=mysqld-bin
 binlog-format=row
+wsrep_debug=1
 
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'

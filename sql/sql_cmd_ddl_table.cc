@@ -436,6 +436,7 @@ bool Sql_cmd_create_table::execute(THD *thd) {
           mysql_mutex_lock(&LOCK_wsrep_alter_tablespace);
         }
 
+        // !!!
         /* Note we are explictly opening the macro as we need to perform
         cleanup action on TOI failure. */
         if (WSREP(thd) &&

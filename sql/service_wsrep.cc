@@ -95,6 +95,15 @@ extern "C" bool wsrep_thd_is_in_rsu(const THD *thd) {
   return thd->wsrep_cs().mode() == wsrep::client_state::m_rsu;
 }
 
+extern "C" bool wsrep_thd_is_in_nbo(const THD *thd) {
+  return thd->wsrep_cs().mode() == wsrep::client_state::m_nbo;
+}
+
+extern "C" bool wsrep_thd_is_local_nbo(const THD *thd) {
+  return thd->wsrep_cs().mode() == wsrep::client_state::m_nbo &&
+         thd->wsrep_cs().toi_mode() == wsrep::client_state::m_local;
+}
+
 extern "C" bool wsrep_thd_is_BF(const THD *thd, bool sync) {
   bool status = false;
   if (thd && WSREP(thd)) {

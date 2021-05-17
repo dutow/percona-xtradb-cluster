@@ -13210,6 +13210,16 @@ static bool mysql_inplace_alter_table(
           "WAIT_FOR continue_inplace_alter";
       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
     };);
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("sync.alter_locked_tables_inplace",
+                  {
+                      const char act[]=
+                          "now "
+                          "wait_for signal.alter_locked_tables_inplace";
+                      DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                         STRING_WITH_LEN(act)));
+                  };);
+#endif /* WITH_WSREP */
     DEBUG_SYNC(thd, "alter_table_inplace_after_lock_downgrade");
     THD_STAGE_INFO(thd, stage_alter_inplace);
 

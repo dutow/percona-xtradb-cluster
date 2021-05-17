@@ -141,7 +141,7 @@ extern const LEX_CSTRING command_name[];
     goto error;
 
 #define WSREP_TO_ISOLATION_END                                                 \
-  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) || wsrep_thd_is_in_rsu(thd)) \
+  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) || wsrep_thd_is_in_rsu(thd) || wsrep_thd_is_in_nbo(thd)) \
     wsrep_to_isolation_end(thd);
 
 /* Checks if lex->no_write_to_binlog is set for statements that use

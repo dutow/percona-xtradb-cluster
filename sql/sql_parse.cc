@@ -4089,7 +4089,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
         ulong osu_method = thd->variables.wsrep_OSU_method;
         /* OSU method set to RSU.
            Commit/Rollback existing transaction (if any) */
-        if (cached_osu_method == WSREP_OSU_TOI && osu_method == WSREP_OSU_RSU) {
+        if (cached_osu_method == WSREP_OSU_TOI && osu_method == WSREP_OSU_RSU) { // !!
           if (trans_commit_implicit(thd)) {
             thd->mdl_context.release_transactional_locks();
             WSREP_DEBUG(

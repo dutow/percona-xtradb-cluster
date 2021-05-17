@@ -7927,7 +7927,7 @@ static Sys_var_uint Sys_wsrep_sync_wait(
     DEFAULT(WSREP_SYNC_WAIT_NONE), BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
     ON_CHECK(0), ON_UPDATE(wsrep_sync_wait_update));
 
-static const char *wsrep_OSU_method_names[] = {"TOI", "RSU", NullS};
+static const char *wsrep_OSU_method_names[] = {"TOI", "RSU", "NBO", NullS};
 static Sys_var_enum Sys_wsrep_OSU_method(
     "wsrep_OSU_method", "Method for Online Schema Upgrade",
     SESSION_VAR(wsrep_OSU_method), CMD_LINE(OPT_ARG), wsrep_OSU_method_names,

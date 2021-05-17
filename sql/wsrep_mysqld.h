@@ -103,6 +103,7 @@ enum enum_wsrep_reject_types {
 enum enum_wsrep_OSU_method {
   WSREP_OSU_TOI,
   WSREP_OSU_RSU,
+  WSREP_OSU_NBO,
   WSREP_OSU_NONE,
 };
 

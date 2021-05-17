@@ -21,6 +21,8 @@
 #include "wsrep_schema.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_xid.h"
+#include "sql/protocol_classic.h"
+#include "sql/mysqld_thd_manager.h"  // Global_THD_manager
 
 #include "debug_sync.h"
 #include "item_func.h"
@@ -646,11 +648,159 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta &ws_meta,
   DBUG_RETURN(ret);
 }
 
-int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta&,
-                                           const wsrep::const_buffer&,
-                                           wsrep::mutable_buffer&)
-{
+PSI_thread_key key_nbo_thread;
+
+static PSI_thread_info nbo_threads[] = {
+    {&key_nbo_thread, "NBO update thread", 0, 0, PSI_DOCUMENT_ME}};
+
+int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
+                                           const wsrep::const_buffer &data,
+                                           wsrep::mutable_buffer &err) {
   DBUG_ENTER("Wsrep_applier_service::apply_nbo_begin");
+
+  // TODO: movi this!
+  const char *category = "sql";
+  mysql_thread_register(category, nbo_threads, 1);
+  
+  std::thread th([&] {
+      //wsp::thd::thd_init ti;
+
+    wsp::thd wthd(true);
+  THD *replayer_thd = wthd.ptr;
+  replayer_thd->get_protocol_classic()->init_net((Vio *)0);
+  replayer_thd->security_context()->set_host_ptr(my_localhost, strlen(my_localhost));
+  //replayer_thd->set_new_thread_id();
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_thread *psi = PSI_THREAD_CALL(new_thread)(key_nbo_thread, replayer_thd,
+                                           replayer_thd->thread_id());
+  replayer_thd->set_psi(psi);
+  PSI_THREAD_CALL(set_thread)(psi);
+  PSI_THREAD_CALL(set_thread_os_id)(psi);
+  assert(psi!=nullptr);
+#endif
+  //replayer_thd->thread_stack = (char *)&replayer_thd;
+  replayer_thd->store_globals();
+  replayer_thd->binlog_setup_trx_data();
+  replayer_thd->set_current_stmt_binlog_format_row();
+
+   THD *thd = replayer_thd;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  //{
+    // Attach thread instrumentation
+    //struct PSI_thread *psi = PSI_THREAD_CALL(get_thread)();
+    //assert(psi!=nullptr);
+    mysql_thread_set_psi_id(thd->thread_id());
+    mysql_thread_set_psi_THD(thd);
+    Global_THD_manager *thd_manager = Global_THD_manager::get_instance();
+    thd_manager->add_thd(thd);
+    //thd->set_psi(psi);
+    fprintf(stderr, "THDID::::: %u\n", replayer_thd->thread_id());
+    fprintf(stderr, "THDID::::: %p\n", my_thread_var_dbug());
+  //}
+#endif /* HAVE_PSI_THREAD_INTERFACE */
+
+    thd->wsrep_rli = wsrep_relay_log_init("wsrep_relay");
+    assert(!thd->rli_slave);
+    thd->rli_slave = thd->wsrep_rli;
+    thd->wsrep_rli->info_thd = thd;
+
+    thd->variables.wsrep_OSU_method = WSREP_OSU_NBO;
+
+   wsrep_open(thd);
+  wsrep_wait_rollback_complete_and_acquire_ownership(thd);
+
+    //Wsrep_applier_service as(thd);
+    //Wsrep_non_trans_mode non_trans_mode(thd, ws_meta);
+
+    wsrep::client_state &client_state(thd->wsrep_cs());
+    client_state.enter_nbo_mode(ws_meta);
+    // DBUG_ASSERT(client_state.in_nbo());
+
+    // thd_proc_info(thd, "wsrep applier toi");
+    // THD_STAGE_INFO(m_thd, stage_wsrep_applying_toi_writeset);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: applying NBO write-set (%lld)",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    WSREP_DEBUG("Wsrep_high_priority_service::apply_nbo_begin: %lld",
+                client_state.toi_meta().seqno().get());
+
+    /* DDL are atomic so flow (in wsrep_apply_events) will assign XID.
+    Avoid over-writting of this XID by MySQL XID */
+    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(true);
+
+    int ret = apply_events(thd, m_rli, data, err);
+    wsrep_thd_set_ignored_error(thd, false);
+
+    THD_STAGE_INFO(thd, stage_wsrep_applied_writeset);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: %s NBO write set (%lld)",
+             !ret ? "applied" : "failed to apply",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    THD_STAGE_INFO(thd, stage_wsrep_toi_committing);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: committing NBO write set (%lld)",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    ret = trans_commit(thd);
+
+    THD_STAGE_INFO(thd, stage_wsrep_committed);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: %s NBO write set (%lld)",
+             (!ret ? "committed" : "failed to commit"),
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    if (ret == 0) {
+      thd->wsrep_rli->cleanup_context(thd, 0);
+      thd->variables.gtid_next.set_automatic();
+    }
+
+    TABLE *tmp;
+    while ((tmp = thd->temporary_tables)) {
+      WSREP_DEBUG("Applier %u, has temporary tables: %s.%s", thd->thread_id(),
+                  (tmp->s) ? tmp->s->db.str : "void",
+                  (tmp->s) ? tmp->s->table_name.str : "void");
+      close_temporary_table(thd, tmp, true, true);
+    }
+
+    thd->lex->sql_command = SQLCOM_END;
+
+    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+
+    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(false);
+    /* Reset the xid once the transaction has been committed.
+    This being TOI transaction it will not pass through wsrep_xxx hooks.
+    Resetting is important to ensure that the applier xid state is restored
+    so if node rejoins and applier thread is re-use for logging view or local
+    activity like rolling back of SR transaction then stale state is not used.
+  */
+    thd->get_transaction()->xid_state()->get_xid()->reset();
+
+    must_exit_ = check_exit_status();
+
+  thd->wsrep_cs().after_command_before_result();
+  thd->wsrep_cs().after_command_after_result();
+  thd->wsrep_cs().close();
+  thd->wsrep_cs().cleanup();
+
+  thd->release_resources();
+    thd_manager->remove_thd(thd);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  //PSI_THREAD_CALL(delete_thread)(thd->get_psi());
+#endif
+  });
+
+  th.detach();
+
   DBUG_RETURN(0);
 }
 
@@ -731,76 +881,70 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD *replayer_thd, THD *orig_thd)
   replayer_thd->wsrep_cs().clone_transaction_for_replay(orig_thd->wsrep_trx());
 }
 
-Wsrep_replayer_service::~Wsrep_replayer_service() {
-  THD *replayer_thd = m_thd;
-  THD *orig_thd = m_orig_thd;
+  Wsrep_replayer_service::~Wsrep_replayer_service() {
+    THD *replayer_thd = m_thd;
+    THD *orig_thd = m_orig_thd;
 
-  /* Switch execution context back to original. */
-  wsrep_after_apply(replayer_thd);
-  wsrep_after_command_ignore_result(replayer_thd);
-  wsrep_close(replayer_thd);
-  wsrep_reset_threadvars(replayer_thd);
-  wsrep_store_threadvars(orig_thd);
+    /* Switch execution context back to original. */
+    wsrep_after_apply(replayer_thd);
+    wsrep_after_command_ignore_result(replayer_thd);
+    wsrep_close(replayer_thd);
+    wsrep_reset_threadvars(replayer_thd);
+    wsrep_store_threadvars(orig_thd);
 
-  if (m_replay_status == wsrep::provider::success)
-  {
-    DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
-    orig_thd->killed= THD::NOT_KILLED;
-    my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
-  }
-  else if (m_replay_status == wsrep::provider::error_certification_failed)
-  {
-    wsrep_override_error(orig_thd, ER_LOCK_DEADLOCK);
-  }
-  else
-  {
-    DBUG_ASSERT(0);
-    WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
-                m_replay_status,
-                orig_thd->db().str, WSREP_QUERY(orig_thd));
-    unireg_abort(1);
-  }
-}
-
-int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta &ws_meta,
-                                            const wsrep::const_buffer &data,
-                                            wsrep::mutable_buffer &err) {
-  DBUG_ENTER("Wsrep_replayer_service::apply_write_set");
-  THD *thd = m_thd;
-
-  DBUG_ASSERT(thd->wsrep_trx().active());
-  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_replaying);
-
-  wsrep_setup_uk_and_fk_checks(thd);
-
-  int ret = 0;
-  if (!wsrep::starts_transaction(ws_meta.flags())) {
-    DBUG_ASSERT(thd->wsrep_trx().is_streaming());
-    ret = wsrep_schema->replay_transaction(thd, m_rli, ws_meta,
-                                           thd->wsrep_sr().fragments());
+    if (m_replay_status == wsrep::provider::success) {
+      DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
+      orig_thd->killed = THD::NOT_KILLED;
+      my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
+    } else if (m_replay_status == wsrep::provider::error_certification_failed) {
+      wsrep_override_error(orig_thd, ER_LOCK_DEADLOCK);
+    } else {
+      DBUG_ASSERT(0);
+      WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
+                  m_replay_status, orig_thd->db().str, WSREP_QUERY(orig_thd));
+      unireg_abort(1);
+    }
   }
 
-  ret= ret || apply_events(thd, m_rli, data, err);
+  int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta &ws_meta,
+                                              const wsrep::const_buffer &data,
+                                              wsrep::mutable_buffer &err) {
+    DBUG_ENTER("Wsrep_replayer_service::apply_write_set");
+    THD *thd = m_thd;
 
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables)) {
-    WSREP_DEBUG("Applier %u, has temporary tables: %s.%s", thd->thread_id(),
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(thd, tmp, true, true);
+    DBUG_ASSERT(thd->wsrep_trx().active());
+    DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_replaying);
+
+    wsrep_setup_uk_and_fk_checks(thd);
+
+    int ret = 0;
+    if (!wsrep::starts_transaction(ws_meta.flags())) {
+      DBUG_ASSERT(thd->wsrep_trx().is_streaming());
+      ret = wsrep_schema->replay_transaction(thd, m_rli, ws_meta,
+                                             thd->wsrep_sr().fragments());
+    }
+
+    ret = ret || apply_events(thd, m_rli, data, err);
+
+    TABLE *tmp;
+    while ((tmp = thd->temporary_tables)) {
+      WSREP_DEBUG("Applier %u, has temporary tables: %s.%s", thd->thread_id(),
+                  (tmp->s) ? tmp->s->db.str : "void",
+                  (tmp->s) ? tmp->s->table_name.str : "void");
+      close_temporary_table(thd, tmp, true, true);
+    }
+
+    if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit)) {
+      thd->wsrep_cs().fragment_applied(ws_meta.seqno());
+    }
+
+    // thd_proc_info(thd, "wsrep replayed write set");
+    THD_STAGE_INFO(thd, stage_wsrep_replayed_write_set);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: replayed write set (%lld)",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    DBUG_RETURN(ret);
   }
-
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit)) {
-    thd->wsrep_cs().fragment_applied(ws_meta.seqno());
-  }
-
-  // thd_proc_info(thd, "wsrep replayed write set");
-  THD_STAGE_INFO(thd, stage_wsrep_replayed_write_set);
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
-           "wsrep: replayed write set (%lld)",
-           (long long)wsrep_thd_trx_seqno(thd));
-  WSREP_DEBUG("%s", thd->wsrep_info);
-  thd_proc_info(thd, thd->wsrep_info);
-
-  DBUG_RETURN(ret);
-}

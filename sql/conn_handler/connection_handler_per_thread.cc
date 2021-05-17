@@ -296,6 +296,7 @@ static void *handle_connection(void *arg) {
     /* Find the instrumented thread */
     PSI_thread *psi = PSI_THREAD_CALL(get_thread)();
     /* Save it within THD, so it can be inspected */
+    assert(psi!=nullptr);
     thd->set_psi(psi);
 #endif /* HAVE_PSI_THREAD_INTERFACE */
     mysql_thread_set_psi_id(thd->thread_id());
