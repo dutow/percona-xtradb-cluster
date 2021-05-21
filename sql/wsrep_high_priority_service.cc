@@ -30,6 +30,7 @@
 #include "transaction.h"
 
 #include "sql_base.h"  // close_temporary_table()
+#include <condition_variable>
 
 extern handlerton *binlog_hton;
 
@@ -658,10 +659,21 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
                                            wsrep::mutable_buffer &err) {
   DBUG_ENTER("Wsrep_applier_service::apply_nbo_begin");
 
+ static std::mutex mtx;
+ static std::condition_variable cv;
+ std::unique_lock<std::mutex> lk{mtx};
+ bool passed = false;
+ 
+
   // TODO: movi this!
   const char *category = "sql";
   mysql_thread_register(category, nbo_threads, 1);
   
+    snprintf(m_thd->wsrep_info, sizeof(m_thd->wsrep_info),
+             "11 wsrep: applying NBO write-set (%lld)",
+             (long long)wsrep_thd_trx_seqno(m_thd));
+    WSREP_DEBUG("%s", m_thd->wsrep_info);
+
   std::thread th([&] {
       //wsp::thd::thd_init ti;
 
@@ -669,7 +681,7 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
   THD *replayer_thd = wthd.ptr;
   replayer_thd->get_protocol_classic()->init_net((Vio *)0);
   replayer_thd->security_context()->set_host_ptr(my_localhost, strlen(my_localhost));
-  //replayer_thd->set_new_thread_id();
+  replayer_thd->set_new_thread_id();
 #ifdef HAVE_PSI_THREAD_INTERFACE
   PSI_thread *psi = PSI_THREAD_CALL(new_thread)(key_nbo_thread, replayer_thd,
                                            replayer_thd->thread_id());
@@ -696,6 +708,7 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
     //thd->set_psi(psi);
     fprintf(stderr, "THDID::::: %u\n", replayer_thd->thread_id());
     fprintf(stderr, "THDID::::: %p\n", my_thread_var_dbug());
+    fprintf(stderr, "THDID::::: %p\n", replayer_thd);
   //}
 #endif /* HAVE_PSI_THREAD_INTERFACE */
 
@@ -713,8 +726,17 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
     //Wsrep_non_trans_mode non_trans_mode(thd, ws_meta);
 
     wsrep::client_state &client_state(thd->wsrep_cs());
+
+        client_state.before_command();
+        client_state.before_statement();
     client_state.enter_nbo_mode(ws_meta);
     // DBUG_ASSERT(client_state.in_nbo());
+
+    {
+ std::unique_lock<std::mutex> lk{mtx};
+ passed = true;
+    }
+    cv.notify_one();
 
     // thd_proc_info(thd, "wsrep applier toi");
     // THD_STAGE_INFO(m_thd, stage_wsrep_applying_toi_writeset);
@@ -725,13 +747,14 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
     thd_proc_info(thd, thd->wsrep_info);
 
     WSREP_DEBUG("Wsrep_high_priority_service::apply_nbo_begin: %lld",
-                client_state.toi_meta().seqno().get());
+                client_state.nbo_meta().seqno().get());
 
     /* DDL are atomic so flow (in wsrep_apply_events) will assign XID.
     Avoid over-writting of this XID by MySQL XID */
-    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(true);
+    //thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(true);
 
-    int ret = apply_events(thd, m_rli, data, err);
+    wsrep::mutable_buffer err2;
+    int ret = apply_events(thd, m_rli, data, err2);
     wsrep_thd_set_ignored_error(thd, false);
 
     THD_STAGE_INFO(thd, stage_wsrep_applied_writeset);
@@ -774,16 +797,16 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
 
     thd->lex->sql_command = SQLCOM_END;
 
-    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+    wsrep_set_SE_checkpoint(ws_meta.gtid());
 
-    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(false);
+    //thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(false);
     /* Reset the xid once the transaction has been committed.
     This being TOI transaction it will not pass through wsrep_xxx hooks.
     Resetting is important to ensure that the applier xid state is restored
     so if node rejoins and applier thread is re-use for logging view or local
     activity like rolling back of SR transaction then stale state is not used.
   */
-    thd->get_transaction()->xid_state()->get_xid()->reset();
+    //thd->get_transaction()->xid_state()->get_xid()->reset();
 
     must_exit_ = check_exit_status();
 
@@ -799,7 +822,13 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
 #endif
   });
 
+  cv.wait(lk, [&]{ return passed; });
+
   th.detach();
+
+  
+    //using namespace std::chrono_literals;
+  //std::this_thread::sleep_for(2000ms);
 
   DBUG_RETURN(0);
 }

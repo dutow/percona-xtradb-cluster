@@ -5166,6 +5166,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
     case SQLCOM_REPAIR:
     case SQLCOM_TRUNCATE:
     case SQLCOM_ALTER_TABLE:
+                                     // !!!!!!!
     case SQLCOM_HA_OPEN:
     case SQLCOM_HA_READ:
     case SQLCOM_HA_CLOSE:
@@ -5543,6 +5544,8 @@ finish:
   if (lex->sql_command != SQLCOM_SET_OPTION && !thd->in_sub_stmt)
     DEBUG_SYNC(thd, "execute_command_after_close_tables");
 #endif
+
+  WSREP_TO_ISOLATION_BEFORE_MDL_RELEASE;
 
   if (!thd->in_sub_stmt && thd->transaction_rollback_request) {
     /*

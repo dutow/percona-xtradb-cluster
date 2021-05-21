@@ -88,6 +88,7 @@ static bool set_SE_checkpoint(THD *, plugin_ref plugin, void *arg) {
         0,
     };
     wsrep_uuid_print((const wsrep_uuid_t *)uuid, uuid_str, sizeof(uuid_str));
+    //DBUG_ASSERT(uuid_str[0] != '0');
     WSREP_DEBUG("Setting WSREPXid (InnoDB): %s:%lld", uuid_str,
                 (long long)wsrep_xid_seqno(xid));
     hton->wsrep_set_checkpoint(hton, xid);

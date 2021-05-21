@@ -12,6 +12,7 @@ SET @@global.wsrep_log_conflicts=ON;
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER NOT NULL, f2 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER NOT NULL, f2 INTEGER NOT NULL) ENGINE=InnoDB;
 SET @@global.wsrep_log_conflicts=ON;
 
 --connection node_2
@@ -24,7 +25,7 @@ SET SESSION wsrep_osu_method=NBO;
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
 SET SESSION wsrep_osu_method=NBO;
---send ALTER TABLE t1 LOCK=SHARED, ADD KEY (f2);
+--send ALTER TABLE t2 LOCK=SHARED, ADD KEY (f2);
 
 --connection node_2
 SET SESSION wsrep_sync_wait=0;
@@ -35,10 +36,12 @@ SET SESSION wsrep_sync_wait=0;
 
 SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
 SET GLOBAL debug = '';
+
 --sleep 1
 
 SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
 SET GLOBAL debug = '';
+
 --sleep 1
 
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'ALTER%';

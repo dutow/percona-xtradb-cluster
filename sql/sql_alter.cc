@@ -370,7 +370,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
 
   thd->set_slow_log_for_admin_command();
 
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_TODO
   /* Check if foreign keys are accessible.
   1. Transaction is replicated first, then is done locally.
   2. Replicated node applies write sets in context
@@ -611,6 +611,9 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
 
   if (!thd->lex->is_ignore() && thd->is_strict_mode())
     thd->pop_internal_handler();
+
+  //WSREP_TO_PHASE_ONE_END;
+
   return result;
 }
 

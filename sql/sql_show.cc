@@ -2940,13 +2940,14 @@ class Fill_process_list : public Do_THD_Impl {
             : client_priv_user;
     ulonglong now_utime = my_micro_time();
 
-    if ((inspect_thd->get_protocol() != nullptr && 
+    /*if ((inspect_thd->get_protocol() != nullptr && 
           !inspect_thd->get_protocol()->connection_alive() &&
          !inspect_thd->system_thread) ||
         (user && (inspect_thd->system_thread || !inspect_sctx_user.str ||
                   strcmp(inspect_sctx_user.str, user))) ||
         is_utility_user)
       return;
+      */
 
     DBUG_EXECUTE_IF(
         "test_fill_proc_with_x_root",

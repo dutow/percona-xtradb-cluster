@@ -100,6 +100,7 @@ extern "C" bool wsrep_thd_is_in_rsu(const THD *thd);
 extern "C" bool wsrep_thd_is_in_nbo(const THD *thd);
 
 extern "C" bool wsrep_thd_is_local_nbo(const THD *thd);
+extern "C" bool wsrep_thd_is_undef_nbo(const THD *thd);
 
 /* Return true if thd is in BF mode, either high_priority or TOI */
 extern "C" bool wsrep_thd_is_BF(const THD *thd, bool sync);

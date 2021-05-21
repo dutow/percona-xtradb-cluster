@@ -35,3 +35,4 @@ DROP TABLE t1;
 
 --connection node_2
 CALL mtr.add_suppression("Slave SQL: Error 'Duplicate column name");
+CALL mtr.add_suppression("Query apply failed");

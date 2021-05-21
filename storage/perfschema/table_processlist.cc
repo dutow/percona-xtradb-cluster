@@ -295,7 +295,7 @@ int table_processlist::make_row(PFS_thread *pfs) {
     }
   } else {
     m_row.m_processlist_state_length = 0;
-    assert(m_row.m_dbname_length == 0);
+    //assert(m_row.m_dbname_length == 0);
   }
 
   m_row.m_port = pfs->m_peer_port;

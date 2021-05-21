@@ -93,7 +93,7 @@ void wsrep_store_error(const THD *const thd, wsrep::mutable_buffer& dst) {
   const char *const buf_end = slider + max_len - 1; // -1: leave space for \0
 
   auto da = thd->get_stmt_da();
-  if(da->cond_count() == 0) {
+  if(da->cond_count() == 0 && da->is_set()) {
     slider += snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
                        da->message_text(), da->mysql_errno());
   }

@@ -431,6 +431,8 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              Alter_info *alter_info = NULL);
 bool wsrep_thd_is_in_to_isolation(THD *thd, bool flock);
 void wsrep_to_isolation_end(THD *thd);
+void wsrep_nbo_isolation_begin_end(THD *thd);
+void wsrep_nbo_isolation_end_begin(THD *thd);
 
 bool wsrep_append_SR_keys(THD *thd);
 int wsrep_to_buf_helper(THD *thd, const char *query, uint query_len,

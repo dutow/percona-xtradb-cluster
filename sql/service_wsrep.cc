@@ -59,6 +59,8 @@ extern "C" long long wsrep_thd_trx_seqno(const THD *thd) {
   const wsrep::client_state &cs = thd->wsrep_cs();
   if (cs.mode() == wsrep::client_state::m_toi) {
     return cs.toi_meta().seqno().get();
+  } else if (cs.mode() == wsrep::client_state::m_nbo) {
+    return cs.nbo_meta().seqno().get();
   } else {
     return cs.transaction().ws_meta().seqno().get();
   }
@@ -102,6 +104,11 @@ extern "C" bool wsrep_thd_is_in_nbo(const THD *thd) {
 extern "C" bool wsrep_thd_is_local_nbo(const THD *thd) {
   return thd->wsrep_cs().mode() == wsrep::client_state::m_nbo &&
          thd->wsrep_cs().toi_mode() == wsrep::client_state::m_local;
+}
+
+extern "C" bool wsrep_thd_is_undef_nbo(const THD *thd) {
+  return thd->wsrep_cs().mode() == wsrep::client_state::m_nbo &&
+         thd->wsrep_cs().toi_mode() == wsrep::client_state::m_undefined;
 }
 
 extern "C" bool wsrep_thd_is_BF(const THD *thd, bool sync) {

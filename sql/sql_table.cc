@@ -12985,6 +12985,8 @@ static bool mysql_inplace_alter_table(
 
   DBUG_TRACE;
 
+  fprintf(stderr, "HERE?\n");
+
   /*
     Upgrade to EXCLUSIVE lock if:
     - This is requested by the storage engine
@@ -13211,6 +13213,9 @@ static bool mysql_inplace_alter_table(
       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
     };);
 #ifdef WITH_WSREP
+
+  WSREP_TO_ISOLATION_AFTER_MDL_ACQUIRED;
+
   DBUG_EXECUTE_IF("sync.alter_locked_tables_inplace",
                   {
                       const char act[]=
@@ -17027,6 +17032,9 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
     */
     trans_rollback_stmt(thd);
     trans_rollback(thd);
+
+    WSREP_TO_ISOLATION_AFTER_MDL_ACQUIRED;
+
     return true;
   }
 
@@ -17320,7 +17328,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
     //
     // i.e, Upgrade to SHARED LOCK when thread is a WSREP thd, and exec mode is
     // either TOI or replicated and lock acquisition is a variant of NO_LOCK.
-    if ((wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd)) &&
+    if ((wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd)/* || wsrep_thd_is_in_nbo(thd) */) &&
         (inplace_supported == HA_ALTER_INPLACE_NO_LOCK ||
          inplace_supported == HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE)) {
       inplace_supported = HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE;
@@ -17607,6 +17615,21 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
     // It's now safe to take the table level lock.
     if (lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
       goto err_new_table_cleanup;
+
+    // HERE
+#ifdef WITH_WSREP
+  WSREP_TO_ISOLATION_AFTER_MDL_ACQUIRED;
+
+  DBUG_EXECUTE_IF("sync.alter_locked_tables",
+                  {
+                      const char act[]=
+                          "now "
+                          "wait_for signal.alter_locked_tables";
+                      DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                         STRING_WITH_LEN(act)));
+                  };);
+
+#endif /* WITH_WSREP */
   }
 
   /*

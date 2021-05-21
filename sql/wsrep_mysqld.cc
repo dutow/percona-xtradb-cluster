@@ -1631,13 +1631,13 @@ wsrep::key_array wsrep_prepare_keys_for_toi(const char *db, const char *table,
                                             Alter_info *alter_info) {
   wsrep::key_array ret;
   if (db || table) {
-    ret.push_back(wsrep_prepare_key_for_toi(db, table, wsrep::key::exclusive));
+    ret.push_back(wsrep_prepare_key_for_toi(db, table, wsrep::key::shared));
   }
   for (const TABLE_LIST *table_it = table_list; table_it;
        table_it = table_it->next_global) {
     ret.push_back(wsrep_prepare_key_for_toi(table_it->get_db_name(),
                                             table_it->get_table_name(),
-                                            wsrep::key::exclusive));
+                                            wsrep::key::shared));
   }
   if (alter_info && (alter_info->flags & Alter_info::ADD_FOREIGN_KEY)) {
     wsrep::key_array fk(wsrep_prepare_keys_for_alter_add_fk(
@@ -2169,7 +2169,9 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
   int buf_err;
   int rc;
 
-  DEBUG_SYNC(thd, "wsrep_TOI_begin_before_wsrep_skip_wsrep_hton");
+  WSREP_DEBUG("Starting NBO phase one");
+
+  DEBUG_SYNC(thd, "wsrep_NBO_begin_before_wsrep_skip_wsrep_hton");
   mysql_mutex_lock(&thd->LOCK_thd_data);
 
   /*
@@ -2246,6 +2248,7 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
 
   if (ret) {
     DBUG_ASSERT(cs.current_error());
+    // HERE's the cnonconflicting issue
     WSREP_DEBUG("begin_nbo_phase_one() failed for %u: %s, seqno: %lld",
                 thd->thread_id(), WSREP_QUERY(thd),
                 (long long)wsrep_thd_trx_seqno(thd));
@@ -2258,6 +2261,7 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
             "Check wsrep connection state and retry the query.",
             ret, (thd->db().str ? thd->db().str : "(null)"), WSREP_QUERY(thd));
         if (!thd->is_error()) {
+          WSREP_WARN("Adjusting error to deadlock");
           my_error(ER_LOCK_DEADLOCK, MYF(0),
                    "WSREP replication failed. Check "
                    "your wsrep connection state and retry the query.");
@@ -2286,17 +2290,6 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
                      thd->wsrep_cs().toi_meta().gtid());
     }
 
-    wsrep::mutable_buffer err;
-    WSREP_DEBUG("Ending NBO phase one");
-    ret = cs.end_nbo_phase_one(err);
-    WSREP_DEBUG("NBO phase one ended");
-    if (ret) {
-      DBUG_ASSERT(cs.current_error());
-      WSREP_DEBUG("end_nbo_phase_one() failed for %u: %s, seqno: %lld",
-                  thd->thread_id(), WSREP_QUERY(thd),
-                  (long long)wsrep_thd_trx_seqno(thd));
-    }
-
     ++wsrep_to_isolation;
     rc = 0;
   }
@@ -2311,31 +2304,58 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
   return rc;
 }
 
+void wsrep_nbo_isolation_begin_end(THD *thd) {
+    wsrep::mutable_buffer err;
+    WSREP_DEBUG("Ending NBO phase one");
+    int ret = thd->wsrep_cs().end_nbo_phase_one(err);
+    WSREP_DEBUG("NBO phase one ended");
+    if (ret) {
+      DBUG_ASSERT(thd->wsrep_cs().current_error());
+      WSREP_DEBUG("end_nbo_phase_one() failed for %u: %s, seqno: %lld",
+                  thd->thread_id(), WSREP_QUERY(thd),
+                  (long long)wsrep_thd_trx_seqno(thd));
+    }
+}
+
+void wsrep_nbo_isolation_end_begin(THD *thd) {
+  WSREP_DEBUG("NBO END maybe start");
+  wsrep::client_state &client_state(thd->wsrep_cs());
+  //DBUG_ASSERT(wsrep_thd_is_local_nbo(thd));
+  if (wsrep_thd_is_in_nbo(thd)) {
+    WSREP_DEBUG("NBO END start: %lld: %s", client_state.nbo_meta().seqno().get(),
+              WSREP_QUERY(thd));
+    //DBUG_ASSERT(strstr(WSREP_QUERY(thd), "f1") == 0);
+    int ret = client_state.begin_nbo_phase_two(thd->wsrep_nbo.keys);
+    assert(ret == 0);
+  }
+}
+
 static void wsrep_NBO_end(THD *thd) {
   wsrep_to_isolation--;
 
   wsrep::client_state &client_state(thd->wsrep_cs());
   //DBUG_ASSERT(wsrep_thd_is_local_nbo(thd));
-  WSREP_DEBUG("NBO END: %lld: %s", client_state.toi_meta().seqno().get(),
+  WSREP_DEBUG("NBO END: %lld: %s", client_state.nbo_meta().seqno().get(),
               WSREP_QUERY(thd));
 
-  THD_STAGE_INFO(thd, stage_wsrep_completed_TO_isolation);
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
-           "wsrep: completed NBO write set (%lld)",
-           (long long)wsrep_thd_trx_seqno(thd));
-  WSREP_DEBUG("%s", thd->wsrep_info);
-  thd_proc_info(thd, thd->wsrep_info);
-
   if (wsrep_thd_is_in_nbo(thd)) {
-    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+    THD_STAGE_INFO(thd, stage_wsrep_completed_TO_isolation);
+    snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
+             "wsrep: completed NBO write set (%lld)",
+             (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_DEBUG("%s", thd->wsrep_info);
+    thd_proc_info(thd, thd->wsrep_info);
+
+    //wsrep_set_SE_checkpoint(client_state.nbo_meta().gtid());
     wsrep::mutable_buffer err;
     if (thd->is_error() && !wsrep_must_ignore_error(thd)) {
+      // why does this initiale a vote??? :(
       wsrep_store_error(thd, err);
     }
-    int ret = client_state.begin_nbo_phase_two(thd->wsrep_nbo.keys);
+    int ret = client_state.end_nbo_phase_two(err);
 
     if (!ret) {
-      WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
+      WSREP_DEBUG("TO END: %lld", client_state.nbo_meta().seqno().get());
       /* Reset XID on completion of DDL transactions */
       bool atomic_ddl = is_atomic_ddl(thd, true);
       if (atomic_ddl) {
@@ -2346,7 +2366,6 @@ static void wsrep_NBO_end(THD *thd) {
                  (thd->db().str ? thd->db().str : "(null)"), WSREP_QUERY(thd));
     }
 
-    ret = client_state.end_nbo_phase_two(err);
   }
 }
 

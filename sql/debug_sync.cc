@@ -555,6 +555,7 @@ static void init_debug_sync_psi_keys(void) {
 */
 static const char *debug_sync_thd_proc_info(THD *thd, const char *info) {
   const char *old_proc_info = thd->proc_info;
+  fprintf(stderr, "DBSSSSSS: %p, %s\n", thd, info);
   thd->proc_info = info;
   return old_proc_info;
 }

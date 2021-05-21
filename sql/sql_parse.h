@@ -141,8 +141,15 @@ extern const LEX_CSTRING command_name[];
     goto error;
 
 #define WSREP_TO_ISOLATION_END                                                 \
-  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) || wsrep_thd_is_in_rsu(thd) || wsrep_thd_is_in_nbo(thd)) \
+  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) || wsrep_thd_is_in_rsu(thd) || wsrep_thd_is_local_nbo(thd)) \
     wsrep_to_isolation_end(thd);
+
+#define  WSREP_TO_ISOLATION_BEFORE_MDL_RELEASE \
+    wsrep_nbo_isolation_end_begin(thd);
+
+#define  WSREP_TO_ISOLATION_AFTER_MDL_ACQUIRED \
+  if (wsrep_thd_is_local_nbo(thd)) \
+    wsrep_nbo_isolation_begin_end(thd);
 
 /* Checks if lex->no_write_to_binlog is set for statements that use
   LOCAL or NO_WRITE_TO_BINLOG

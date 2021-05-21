@@ -1,0 +1,25 @@
+#
+# Test that wsrep can process two ALTERs on the same table that are conflicting
+#
+
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL, f2 INTEGER NOT NULL) ENGINE=InnoDB;
+
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--send ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f2);
+
+--connection default
+--send ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--error 0,ER_MULTIPLE_PRI_KEY
+--reap
+
+--connection node_1a
+--error 0,ER_MULTIPLE_PRI_KEY
+--reap
+
+DROP TABLE t1;

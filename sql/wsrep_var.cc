@@ -674,6 +674,7 @@ bool wsrep_slave_threads_update(sys_var *, THD *, enum_var_type) {
   if (wsrep_slave_count_change > 0) {
     WSREP_DEBUG("Creating %d applier threads, total %ld",
                 wsrep_slave_count_change, wsrep_slave_threads);
+    // TODO: NBO should go through applier threads!
     wsrep_create_appliers(wsrep_slave_count_change);
     wsrep_slave_count_change = 0;
   } else {

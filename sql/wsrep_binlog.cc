@@ -304,6 +304,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   ev = (thd->wsrep_applier) ? wsrep_get_apply_format(thd)
                             : (new Format_description_log_event());
 
+#ifdef WSREP_TODO
   // if (writer.write(ev) || my_b_write(&cache, (uchar *)rbr_buf, buf_len) ||
   if (ev->write(&cache) || cache.write(static_cast<uchar *>(const_cast<void *>(rbr_buf)),
                  buf_len) ||
@@ -311,6 +312,15 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     WSREP_ERROR("Failed to write to '%s'.", filename);
     goto cleanup2;
   }
+  /*
+  if (my_b_write(&cache, (const uchar *)(rbr_buf), buf_len) ||
+      flush_io_cache(&cache)) {
+    WSREP_ERROR("Failed to write to '%s'.", filename);
+    goto cleanup2;
+  }
+*/
+#endif
+
 
 cleanup2:
   //end_io_cache(&cache);
