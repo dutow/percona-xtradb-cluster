@@ -145,7 +145,8 @@ extern const LEX_CSTRING command_name[];
     wsrep_to_isolation_end(thd);
 
 #define  WSREP_TO_ISOLATION_BEFORE_MDL_RELEASE \
-    wsrep_nbo_isolation_end_begin(thd);
+    if(WSREP(thd) && wsrep_nbo_isolation_end_begin(thd)) \
+      goto error;
 
 #define  WSREP_TO_ISOLATION_AFTER_MDL_ACQUIRED \
   if (wsrep_thd_is_local_nbo(thd)) \

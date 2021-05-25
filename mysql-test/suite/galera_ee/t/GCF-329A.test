@@ -22,7 +22,7 @@ SET SESSION wsrep_osu_method=NBO;
 --source include/galera_wait_ready.inc
 
 SELECT COUNT(*) = 1 FROM t1;
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 SHOW CREATE TABLE t1;
 
 --connection node_1

@@ -663,6 +663,14 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
  static std::condition_variable cv;
  std::unique_lock<std::mutex> lk{mtx};
  bool passed = false;
+
+ // TODO: if ws_meta has rollback flag in it, simply ignore it???
+ if(ws_meta.flags() & wsrep::provider::flag::rollback) {
+   WSREP_DEBUG("%s", "Certification failed, ignoring...");
+   DBUG_RETURN(0);
+ }
+
+    Wsrep_non_trans_mode non_trans_mode(m_thd, ws_meta);
  
 
   // TODO: movi this!
@@ -725,18 +733,25 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
     //Wsrep_applier_service as(thd);
     //Wsrep_non_trans_mode non_trans_mode(thd, ws_meta);
 
+    wsrep_set_SE_checkpoint(ws_meta.gtid());
+    
     wsrep::client_state &client_state(thd->wsrep_cs());
 
         client_state.before_command();
         client_state.before_statement();
-    client_state.enter_nbo_mode(ws_meta);
-    // DBUG_ASSERT(client_state.in_nbo());
+    int ret = client_state.enter_nbo_mode(ws_meta);
 
     {
  std::unique_lock<std::mutex> lk{mtx};
  passed = true;
     }
     cv.notify_one();
+
+    assert(ret == 0);
+    if(ret != 0) {
+    }
+
+    // DBUG_ASSERT(client_state.in_nbo());
 
     // thd_proc_info(thd, "wsrep applier toi");
     // THD_STAGE_INFO(m_thd, stage_wsrep_applying_toi_writeset);
@@ -751,11 +766,24 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
 
     /* DDL are atomic so flow (in wsrep_apply_events) will assign XID.
     Avoid over-writting of this XID by MySQL XID */
-    //thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(true);
+    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(true);
+
+    // issue: we start apply_events before the first node ends phase one :(
+    // I do not think that should happen...
+    // also what if when we have multiple nodes??
 
     wsrep::mutable_buffer err2;
-    int ret = apply_events(thd, m_rli, data, err2);
+    ret = apply_events(thd, m_rli, data, err2);
     wsrep_thd_set_ignored_error(thd, false);
+
+
+    /*
+    {
+      std::unique_lock<std::mutex> lk{mtx};
+ passed = true;
+    }
+    cv.notify_one();
+    */
 
     THD_STAGE_INFO(thd, stage_wsrep_applied_writeset);
     snprintf(thd->wsrep_info, sizeof(thd->wsrep_info),
@@ -797,18 +825,18 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
 
     thd->lex->sql_command = SQLCOM_END;
 
-    wsrep_set_SE_checkpoint(ws_meta.gtid());
+    //wsrep_set_SE_checkpoint(ws_meta.gtid());
 
-    //thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(false);
+    thd->get_transaction()->xid_state()->get_xid()->set_keep_wsrep_xid(false);
     /* Reset the xid once the transaction has been committed.
     This being TOI transaction it will not pass through wsrep_xxx hooks.
     Resetting is important to ensure that the applier xid state is restored
     so if node rejoins and applier thread is re-use for logging view or local
     activity like rolling back of SR transaction then stale state is not used.
   */
-    //thd->get_transaction()->xid_state()->get_xid()->reset();
+    thd->get_transaction()->xid_state()->get_xid()->reset();
 
-    must_exit_ = check_exit_status();
+    //must_exit_ = check_exit_status();
 
   thd->wsrep_cs().after_command_before_result();
   thd->wsrep_cs().after_command_after_result();

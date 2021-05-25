@@ -370,7 +370,8 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
 
   thd->set_slow_log_for_admin_command();
 
-#ifdef WITH_WSREP_TODO
+//#ifdef WITH_WSREP_TODO
+#ifdef WITH_WSREP
   /* Check if foreign keys are accessible.
   1. Transaction is replicated first, then is done locally.
   2. Replicated node applies write sets in context
@@ -397,7 +398,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
   so we continue to allow them for now as avoid breaking the application.
   Note: Temporary table are never replicated. */
 
-  if (WSREP_ON && !is_temporary_table(first_table)) {
+  if (false && WSREP_ON && !is_temporary_table(first_table)) {
     enum legacy_db_type existing_db_type, new_db_type;
 
     TABLE_LIST* table = first_table;
@@ -573,7 +574,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
   a global mutex but anyway being TOI if there is alter tablespace
   operation active in parallel TOI would streamline it. */
   if (create_info.tablespace) {
-    mysql_mutex_lock(&LOCK_wsrep_alter_tablespace);
+    //mysql_mutex_lock(&LOCK_wsrep_alter_tablespace);
   }
 
   {
@@ -588,7 +589,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
               NULL, &alter_info)) {
         WSREP_WARN("ALTER TABLE isolation failure");
         if (create_info.tablespace) {
-          mysql_mutex_unlock(&LOCK_wsrep_alter_tablespace);
+          //mysql_mutex_unlock(&LOCK_wsrep_alter_tablespace);
         }
         return true;
       }
@@ -596,7 +597,7 @@ bool Sql_cmd_alter_table::execute(THD *thd) {
   }
 
   if (create_info.tablespace) {
-    mysql_mutex_unlock(&LOCK_wsrep_alter_tablespace);
+    //mysql_mutex_unlock(&LOCK_wsrep_alter_tablespace);
   }
 #endif /* WITH_WSREP */
 

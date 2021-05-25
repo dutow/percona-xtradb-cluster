@@ -1603,6 +1603,23 @@ wsrep::key wsrep_prepare_key_for_toi(const char *db, const char *table,
   return ret;
 }
 
+wsrep::key wsrep_prepare_key_for_nbo(const char *db, const char *table,
+                                     enum wsrep::key::type type) {
+  wsrep::key ret(type);
+  DBUG_ASSERT(db);
+  static char seq = 'a';
+
+  char* k1 = new char[2];
+  k1[0] = seq++;
+  k1[1] = 0;
+
+  ret.append_key_part(k1, strlen(k1));
+  ret.append_key_part(db, strlen(db));
+  if (table) ret.append_key_part(table, strlen(table));
+  return ret;
+}
+
+
 wsrep::key_array wsrep_prepare_keys_for_alter_add_fk(const char *child_table_db,
                                                      Alter_info *alter_info)
 
@@ -1656,6 +1673,16 @@ wsrep::key_array wsrep_prepare_keys_for_toi(const char *db, const char *table,
   return ret;
 }
 
+wsrep::key_array wsrep_prepare_keys_for_nbo(const char *db, const char *table,
+                                            const TABLE_LIST *table_list,
+                                            dd::Tablespace_table_ref_vec *trefs,
+                                            Alter_info *alter_info) {
+  wsrep::key_array ret;
+  if (db || table) {
+    ret.push_back(wsrep_prepare_key_for_nbo(db, table, wsrep::key::shared));
+  }
+  return ret;
+}
 /*
  * Construct Query_log_Event from thd query and serialize it
  * into buffer.
@@ -1971,6 +1998,36 @@ fail:
   unireg_abort(1);
 }
 
+static void wsrep_NBO_begin_failed(THD *thd,
+                                   const wsrep_buf_t * /* const err */) {
+  DBUG_TRACE;
+  if (wsrep_thd_trx_seqno(thd) > 0) {
+    fprintf(stderr, "WHHHHHHHHH\n");
+    /* GTID was granted and TO acquired - need to log event and release TO */
+    if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
+    if (wsrep_write_dummy_event(thd, "NBO begin failed")) {
+      goto fail;
+    }
+    wsrep::client_state &cs(thd->wsrep_cs());
+    std::string const err(wsrep::to_c_string(cs.current_error()));
+    wsrep::mutable_buffer err_buf;
+    err_buf.push_back(err);
+    int const ret = cs.leave_toi_local(err_buf);
+    if (ret) {
+      WSREP_ERROR(
+          "Leaving critical section for failed NBO failed: thd: %lld, "
+          "schema: %s, SQL: %s, rcode: %d wsrep_error: %s",
+          (long long)thd->real_id, thd->db().str, thd->query().str, ret,
+          err.c_str());
+      goto fail;
+    }
+  }
+  return;
+fail:
+  WSREP_ERROR("Failed to release NBO resources. Need to abort.");
+  unireg_abort(1);
+}
+
 /*
   returns:
    0: statement was replicated as TOI
@@ -2189,7 +2246,7 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
     Setting wsrep_skip_wsrep_hton=true has a side-effect that this
     query/thread cannot be killed.
   */
-  thd->wsrep_skip_wsrep_hton = true;
+  //thd->wsrep_skip_wsrep_hton = true;
   bool is_thd_killed = thd->is_killed();
 
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -2202,7 +2259,7 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
     return -1;
   }
 
-  thd->wsrep_skip_wsrep_hton = true;
+  //thd->wsrep_skip_wsrep_hton = true;
   if (wsrep_can_run_in_toi(thd, db_, table_, table_list) == false) {
     WSREP_DEBUG("Can't execute %s in NBO mode", WSREP_QUERY(thd));
     return 1;
@@ -2224,7 +2281,7 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
         "issues (including memory allocation) or hitting a configured "
         "limit viz. write set size, etc.");
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED,
-             "Failed to append TOI write-set");
+             "Failed to append NBO write-set");
     return -1;
   }
 
@@ -2241,10 +2298,18 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
   thd_proc_info(thd, thd->wsrep_info);
 
   wsrep::client_state &cs(thd->wsrep_cs());
+
+  static int ic = 0;
+  ic++;
+
+  if (ic == 2) {
+    fprintf(stderr, "Second query\n");
+  }
+
+
   int ret = cs.begin_nbo_phase_one(
       key_array, wsrep::const_buffer(buff.ptr, buff.len));
 
-  thd->wsrep_nbo.keys = key_array;
 
   if (ret) {
     DBUG_ASSERT(cs.current_error());
@@ -2269,6 +2334,8 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
     }
     rc = -1;
   } else {
+    thd->wsrep_nbo.keys = key_array;
+
     WSREP_DEBUG(
         "Query (%s) with write-set (%lld) and exec_mode: %s"
         " replicated in TO Isolation mode",
@@ -2299,7 +2366,8 @@ static int wsrep_NBO_begin(THD *thd, const char *db_, const char *table_,
   thd->wsrep_gtid_event_buf_len = 0;
   thd->wsrep_gtid_event_buf = NULL;
 
-  if (rc) wsrep_TOI_begin_failed(thd, NULL);
+  // THIS IS THE ISSUE!!!
+  if (rc) wsrep_NBO_begin_failed(thd, NULL);
 
   return rc;
 }
@@ -2317,17 +2385,45 @@ void wsrep_nbo_isolation_begin_end(THD *thd) {
     }
 }
 
-void wsrep_nbo_isolation_end_begin(THD *thd) {
+int wsrep_nbo_isolation_end_begin(THD *thd) {
   WSREP_DEBUG("NBO END maybe start");
   wsrep::client_state &client_state(thd->wsrep_cs());
   //DBUG_ASSERT(wsrep_thd_is_local_nbo(thd));
   if (wsrep_thd_is_in_nbo(thd)) {
-    WSREP_DEBUG("NBO END start: %lld: %s", client_state.nbo_meta().seqno().get(),
+    WSREP_DEBUG("NBO END start: %lld: %s", client_state.toi_meta().seqno().get(),
+              WSREP_QUERY(thd));
+    WSREP_DEBUG("NBO END start: %lld: %s", client_state.transaction().ws_meta().seqno().get(),
               WSREP_QUERY(thd));
     //DBUG_ASSERT(strstr(WSREP_QUERY(thd), "f1") == 0);
     int ret = client_state.begin_nbo_phase_two(thd->wsrep_nbo.keys);
-    assert(ret == 0);
+
+  if (ret) {
+    DBUG_ASSERT(client_state.current_error());
+    // HERE's the cnonconflicting issue
+    WSREP_DEBUG("begin_nbo_phase_two() failed for %u: %s, seqno: %lld",
+                thd->thread_id(), WSREP_QUERY(thd),
+                (long long)wsrep_thd_trx_seqno(thd));
+
+    /* jump to error handler in mysql_execute_command() */
+    switch (client_state.current_error()) {
+      default:
+        WSREP_WARN(
+            "NBO isolation failed for: %d, schema: %s, sql: %s. "
+            "Check wsrep connection state and retry the query.",
+            ret, (thd->db().str ? thd->db().str : "(null)"), WSREP_QUERY(thd));
+        if (!thd->is_error()) {
+          WSREP_WARN("Adjusting error to deadlock");
+          // TODO???????
+          //my_error(ER_LOCK_DEADLOCK, MYF(0),
+           //        "WSREP replication failed. Check "
+            //       "your wsrep connection state and retry the query.");
+        }
+    }
+
+    return 1;
   }
+  }
+  return 0;
 }
 
 static void wsrep_NBO_end(THD *thd) {
@@ -2346,7 +2442,9 @@ static void wsrep_NBO_end(THD *thd) {
     WSREP_DEBUG("%s", thd->wsrep_info);
     thd_proc_info(thd, thd->wsrep_info);
 
+    // changE!
     //wsrep_set_SE_checkpoint(client_state.nbo_meta().gtid());
+
     wsrep::mutable_buffer err;
     if (thd->is_error() && !wsrep_must_ignore_error(thd)) {
       // why does this initiale a vote??? :(
@@ -2392,10 +2490,12 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST *table_list,
                              dd::Tablespace_table_ref_vec *trefs,
                              Alter_info *alter_info) {
+  fprintf(stderr, "TO isolation begin!\n");
   /*
     No isolation for applier or replaying threads.
    */
   if (!wsrep_thd_is_local(thd)) return 0;
+  fprintf(stderr, "TO isolation begin!!\n");
 
   /*
     If plugin native tables are being created/dropped then skip TOI for such
@@ -2596,7 +2696,7 @@ bool wsrep_handle_mdl_conflict(const MDL_context *requestor_ctx,
   if (wsrep_thd_is_toi(request_thd) || wsrep_thd_is_applying(request_thd)) {
     mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
 
-    WSREP_MDL_LOG(DEBUG, "---------- MDL conflict --------", schema, schema_len,
+    WSREP_MDL_LOG(INFO, "---------- MDL conflict --------", schema, schema_len,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
@@ -2612,7 +2712,7 @@ bool wsrep_handle_mdl_conflict(const MDL_context *requestor_ctx,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
         mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-        unireg_abort(1);
+        assert(0);
       }
     } else if (granted_thd->lex->sql_command == SQLCOM_FLUSH) {
       WSREP_DEBUG(
@@ -2661,7 +2761,7 @@ bool wsrep_handle_mdl_conflict(const MDL_context *requestor_ctx,
       ret = false;
 #endif /* 0 */
     } else {
-      WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
+      WSREP_MDL_LOG(INFO, "MDL conflict-> BF abort", schema, schema_len,
                     request_thd, granted_thd);
       ticket->wsrep_report(wsrep_debug);
       if (granted_thd->wsrep_trx().active()) {

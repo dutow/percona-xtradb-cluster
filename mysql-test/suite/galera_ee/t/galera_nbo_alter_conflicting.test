@@ -19,6 +19,8 @@ SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
 SET SESSION wsrep_osu_method=NBO;
 --send ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);
 
+--sleep 5
+
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
 SET SESSION wsrep_osu_method=NBO;
@@ -35,6 +37,9 @@ SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
 SET GLOBAL debug = '';
 
 --sleep 1
+
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
 
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'ALTER%';
 --source include/wait_condition.inc
