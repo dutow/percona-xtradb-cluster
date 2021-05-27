@@ -428,6 +428,13 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta &ws_meta,
                                            wsrep::mutable_buffer &err) {
   DBUG_ENTER("Wsrep_high_priority_service::apply_toi");
   THD *thd = m_thd;
+
+ // TODO: if ws_meta has rollback flag in it, simply ignore it???
+ if(ws_meta.flags() & wsrep::provider::flag::rollback) {
+   WSREP_DEBUG("%s", "Certification failed, ignoring...");
+   DBUG_RETURN(0);
+ }
+
   Wsrep_non_trans_mode non_trans_mode(thd, ws_meta);
 
   wsrep::client_state &client_state(thd->wsrep_cs());
@@ -670,6 +677,7 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
    DBUG_RETURN(0);
  }
 
+
     Wsrep_non_trans_mode non_trans_mode(m_thd, ws_meta);
  
 
@@ -683,6 +691,7 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
     WSREP_DEBUG("%s", m_thd->wsrep_info);
 
   std::thread th([&] {
+ wsrep_ready_wait();
       //wsp::thd::thd_init ti;
 
     wsp::thd wthd(true);
@@ -741,11 +750,13 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
         client_state.before_statement();
     int ret = client_state.enter_nbo_mode(ws_meta);
 
+    /*
     {
  std::unique_lock<std::mutex> lk{mtx};
  passed = true;
     }
     cv.notify_one();
+    */
 
     assert(ret == 0);
     if(ret != 0) {
@@ -850,7 +861,7 @@ int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta &ws_meta,
 #endif
   });
 
-  cv.wait(lk, [&]{ return passed; });
+  //cv.wait(lk, [&]{ return passed; });
 
   th.detach();
 

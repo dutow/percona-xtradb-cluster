@@ -26,14 +26,17 @@ SET SESSION wsrep_osu_method=NBO;
 DROP TABLE t1;
 
 --connection node_2
---error ER_LOCK_DEADLOCK
-DROP TABLE t1;
+#--error ER_LOCK_DEADLOCK
+#DROP TABLE t1;
 
 SET GLOBAL DEBUG = '';
 SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
 
+SHOW CREATE TABLE t1;
+
 --connection node_1
 --reap
+SHOW CREATE TABLE t1;
 
 SET SESSION wsrep_osu_method=TOI;
 DROP TABLE t1;
