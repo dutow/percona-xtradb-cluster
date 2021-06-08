@@ -1485,17 +1485,11 @@ struct srv_slot_t {
 };
 #endif /* !UNIV_HOTBACKUP */
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
 void wsrep_srv_conc_cancel_wait(trx_t *trx);
 #endif /* WITH_WSREP */
 
-#ifndef DBUG_OFF
-||||||| eaf397b6843
-#ifndef DBUG_OFF
-=======
 #ifndef NDEBUG
->>>>>>> ps/release-8.0.25-15
 /** false before InnoDB monitor has been printed at least once, true
 afterwards */
 extern bool srv_debug_monitor_printed;

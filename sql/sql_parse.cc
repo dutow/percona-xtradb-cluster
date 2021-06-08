@@ -1438,8 +1438,7 @@ bool do_command(THD *thd) {
   vio_description(net->vio, desc);
   DBUG_PRINT("info", ("Command on %s = %d (%s)", desc, command,
                       command_name[command].str));
-<<<<<<< HEAD
-#endif  // DBUG_OFF
+#endif  // NDEBUG
 
 #ifdef WITH_WSREP
   /*
@@ -1450,9 +1449,9 @@ bool do_command(THD *thd) {
     thd->store_globals();
     WSREP_LOG_THD(thd, "enter found BF aborted");
     /* We don't expect stmt/transactional locks. Explicit locks are allowed */
-    DBUG_ASSERT(!thd->mdl_context.has_stmt_locks());
-    DBUG_ASSERT(!thd->mdl_context.has_transactional_locks());
-    DBUG_ASSERT(!thd->get_stmt_da()->is_set());
+    assert(!thd->mdl_context.has_stmt_locks());
+    assert(!thd->mdl_context.has_transactional_locks());
+    assert(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
     if (command != COM_STMT_CLOSE && command != COM_QUIT) {
       my_error(ER_LOCK_DEADLOCK, MYF(0));
@@ -1501,11 +1500,6 @@ bool do_command(THD *thd) {
   }
 #endif /* WITH_WSREP */
 
-||||||| eaf397b6843
-#endif  // DBUG_OFF
-=======
-#endif  // NDEBUG
->>>>>>> ps/release-8.0.25-15
   DBUG_PRINT("info", ("packet: '%*.s'; command: %d",
                       (int)thd->get_protocol_classic()->get_packet_length(),
                       thd->get_protocol_classic()->get_raw_packet(), command));
@@ -1538,9 +1532,8 @@ bool do_command(THD *thd) {
 
 out:
   /* The statement instrumentation must be closed in all cases. */
-<<<<<<< HEAD
-  DBUG_ASSERT(thd->m_digest == nullptr);
-  DBUG_ASSERT(thd->m_statement_psi == nullptr);
+  assert(thd->m_digest == nullptr);
+  assert(thd->m_statement_psi == nullptr);
 #ifdef WITH_WSREP
   // TODO: Need to findout significance of bad packet and execution of API
   if (!thd->get_protocol_classic()->bad_packet) {
@@ -1548,13 +1541,6 @@ out:
     wsrep_after_command_after_result(thd);
   }
 #endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(thd->m_digest == nullptr);
-  DBUG_ASSERT(thd->m_statement_psi == nullptr);
-=======
-  assert(thd->m_digest == nullptr);
-  assert(thd->m_statement_psi == nullptr);
->>>>>>> ps/release-8.0.25-15
   return return_value;
 }
 
@@ -3138,7 +3124,7 @@ err:
 
 #ifdef WITH_WSREP
 static bool wsrep_is_show_query(enum enum_sql_command command) {
-  DBUG_ASSERT(command >= 0 && command <= SQLCOM_END);
+  assert(command >= 0 && command <= SQLCOM_END);
   return (sql_command_flags[command] & CF_STATUS_COMMAND) != 0;
 }
 #endif /* WITH_WSREP */
@@ -4076,16 +4062,10 @@ int mysql_execute_command(THD *thd, bool first_level) {
       break;
     }
     case SQLCOM_CHECKSUM: {
-<<<<<<< HEAD
 #ifdef WITH_WSREP
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
 #endif /* WITH_WSREP */
-      DBUG_ASSERT(first_table == all_tables && first_table != nullptr);
-||||||| eaf397b6843
-      DBUG_ASSERT(first_table == all_tables && first_table != nullptr);
-=======
       assert(first_table == all_tables && first_table != nullptr);
->>>>>>> ps/release-8.0.25-15
       if (check_table_access(thd, SELECT_ACL, all_tables, false, UINT_MAX,
                              false))
         goto error; /* purecov: inspected */
@@ -4100,8 +4080,8 @@ int mysql_execute_command(THD *thd, bool first_level) {
 #ifdef WITH_WSREP
     {
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
-      DBUG_ASSERT(first_table == all_tables && first_table != 0);
-      DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      assert(first_table == all_tables && first_table != 0);
+      assert(lex->m_sql_cmd != NULL);
       res = lex->m_sql_cmd->execute(thd);
       break;
     }
@@ -4113,8 +4093,8 @@ int mysql_execute_command(THD *thd, bool first_level) {
 #ifdef WITH_WSREP
     {
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-      DBUG_ASSERT(first_table == all_tables && first_table != 0);
-      DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      assert(first_table == all_tables && first_table != 0);
+      assert(lex->m_sql_cmd != NULL);
       res = lex->m_sql_cmd->execute(thd);
       break;
     }
@@ -4206,7 +4186,6 @@ int mysql_execute_command(THD *thd, bool first_level) {
         goto error;
       }
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
       if (cached_pxc_maint_mode != pxc_maint_mode &&
           pxc_maint_mode == PXC_MAINT_MODE_MAINTENANCE) {
@@ -4236,12 +4215,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
       }
 #endif /* WITH_WSREP */
 
-#ifndef DBUG_OFF
-||||||| eaf397b6843
-#ifndef DBUG_OFF
-=======
 #ifndef NDEBUG
->>>>>>> ps/release-8.0.25-15
       /*
         Makes server crash when executing SET SESSION debug = 'd,crash_now';
         See mysql-test/include/dbug_crash[_all].inc
@@ -5391,7 +5365,6 @@ int mysql_execute_command(THD *thd, bool first_level) {
     case SQLCOM_RESTART_SERVER:
     case SQLCOM_CREATE_SRS:
     case SQLCOM_DROP_SRS: {
-<<<<<<< HEAD
 #ifdef WITH_WSREP
       if (lex->sql_command == SQLCOM_SELECT)
         WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ)
@@ -5443,12 +5416,7 @@ int mysql_execute_command(THD *thd, bool first_level) {
       }
 #endif /* WITH_WSREP */
 
-      DBUG_ASSERT(lex->m_sql_cmd != nullptr);
-||||||| eaf397b6843
-      DBUG_ASSERT(lex->m_sql_cmd != nullptr);
-=======
       assert(lex->m_sql_cmd != nullptr);
->>>>>>> ps/release-8.0.25-15
 
       res = lex->m_sql_cmd->execute(thd);
 
@@ -5507,8 +5475,8 @@ int mysql_execute_command(THD *thd, bool first_level) {
            made made after replication, on slave node */
         if (WSREP(thd) && thd->system_thread == NON_SYSTEM_THREAD) {
           Security_context *sctx2 = thd->security_context();
-          DBUG_ASSERT(sctx2);
-          DBUG_ASSERT(sctx2->user().str);
+          assert(sctx2);
+          assert(sctx2->user().str);
           if (user->uses_replace_clause) {
             // If trying to set password for other user
             if (strcmp(sctx2->user().str, user->user.str) ||
@@ -7401,7 +7369,7 @@ static void wsrep_prepare_for_autocommit_retry(THD *thd, const char *rawbuf,
   MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query().str,
                            thd->query().length);
 
-  DBUG_ASSERT(thd->wsrep_trx().active() == false);
+  assert(thd->wsrep_trx().active() == false);
   thd->wsrep_cs().reset_error();
   thd->set_query_id(next_query_id());
 }
@@ -7482,7 +7450,7 @@ static bool wsrep_dispatch_sql_command(THD *thd, const char *rawbuf, uint length
               "now "
               "SIGNAL wsrep_retry_autocommit_reached "
               "WAIT_FOR wsrep_retry_autocommit_continue";
-          DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+          assert(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
         });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
                     thd->wsrep_retry_counter, WSREP_QUERY(thd));
@@ -7521,9 +7489,9 @@ static bool wsrep_dispatch_sql_command(THD *thd, const char *rawbuf, uint length
   /* Keep this code here for easy validation.
   If there is multi-stmt transaction then transaction locks are present at this
   point. */
-  DBUG_ASSERT(!thd->mdl_context.has_stmt_locks());
-  DBUG_ASSERT(!thd->mdl_context.has_transactional_locks() || thd->in_multi_stmt_transaction_mode());
-  DBUG_ASSERT(!thd->mdl_context.has_explicit_locks());
+  assert(!thd->mdl_context.has_stmt_locks());
+  assert(!thd->mdl_context.has_transactional_locks() || thd->in_multi_stmt_transaction_mode());
+  assert(!thd->mdl_context.has_explicit_locks());
 #endif
 
   DBUG_RETURN(false);

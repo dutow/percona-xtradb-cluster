@@ -2354,7 +2354,7 @@ class Set_wsrep_kill_conn : public Do_THD_Impl {
         return;
       }
       DBUG_EXECUTE_IF("Check_dump_thread_is_alive", {
-        DBUG_ASSERT(killing_thd->get_command() != COM_BINLOG_DUMP &&
+        assert(killing_thd->get_command() != COM_BINLOG_DUMP &&
                     killing_thd->get_command() != COM_BINLOG_DUMP_GTID);
       };);
     }
@@ -2726,21 +2726,12 @@ static void unireg_abort(int exit_code) {
 void clean_up_mysqld_mutexes() { clean_up_mutexes(); }
 
 static void mysqld_exit(int exit_code) {
-<<<<<<< HEAD
-  DBUG_ASSERT(
+  assert(
       (exit_code >= MYSQLD_SUCCESS_EXIT && exit_code <= MYSQLD_ABORT_EXIT) ||
       exit_code == MYSQLD_RESTART_EXIT);
 #ifdef WITH_WSREP
   wsrep_deinit_server();
 #endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(
-      (exit_code >= MYSQLD_SUCCESS_EXIT && exit_code <= MYSQLD_ABORT_EXIT) ||
-      exit_code == MYSQLD_RESTART_EXIT);
-=======
-  assert((exit_code >= MYSQLD_SUCCESS_EXIT && exit_code <= MYSQLD_ABORT_EXIT) ||
-         exit_code == MYSQLD_RESTART_EXIT);
->>>>>>> ps/release-8.0.25-15
   mysql_audit_finalize();
   Srv_session::module_deinit();
   delete_optimizer_cost_module();
@@ -7471,7 +7462,7 @@ static int init_server_components() {
       }
     } else if (expire_logs_days_supplied)
       binlog_expire_logs_seconds = 0;
-    DBUG_ASSERT(expire_logs_days == 0 || binlog_expire_logs_seconds == 0);
+    assert(expire_logs_days == 0 || binlog_expire_logs_seconds == 0);
 
     if (opt_bin_log) {
       if (expire_logs_days > 0 || binlog_expire_logs_seconds > 0) {
@@ -7490,42 +7481,7 @@ static int init_server_components() {
       if (binlog_space_limit)
         LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--binlog-space-limit");
     }
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-||||||| eaf397b6843
-  } else if (expire_logs_days_supplied)
-    binlog_expire_logs_seconds = 0;
-  DBUG_ASSERT(expire_logs_days == 0 || binlog_expire_logs_seconds == 0);
-
-  if (opt_bin_log) {
-    if (expire_logs_days > 0 || binlog_expire_logs_seconds > 0) {
-      time_t purge_time = my_time(0) - binlog_expire_logs_seconds -
-                          expire_logs_days * 24 * 60 * 60;
-      DBUG_EXECUTE_IF("expire_logs_always_at_start",
-                      { purge_time = my_time(0); });
-      mysql_bin_log.purge_logs_before_date(purge_time, true);
-    }
-    if (binlog_space_limit) mysql_bin_log.purge_logs_by_size(true);
-  } else {
-    if (binlog_expire_logs_seconds_supplied)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--binlog-expire-logs-seconds");
-    if (expire_logs_days_supplied)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--expire_logs_days");
-    if (binlog_space_limit)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--binlog-space-limit");
-=======
-  } else if (expire_logs_days_supplied)
-    binlog_expire_logs_seconds = 0;
-  assert(expire_logs_days == 0 || binlog_expire_logs_seconds == 0);
-
-  if (!opt_bin_log) {
-    if (binlog_expire_logs_seconds_supplied)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--binlog-expire-logs-seconds");
-    if (expire_logs_days_supplied)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--expire_logs_days");
-    if (binlog_space_limit)
-      LogErr(WARNING_LEVEL, ER_NEED_LOG_BIN, "--binlog-space-limit");
->>>>>>> ps/release-8.0.25-15
   }
 #endif /* WITH_WSREP */
 
@@ -8243,15 +8199,12 @@ int mysqld_main(int argc, char **argv)
     unireg_abort(MYSQLD_ABORT_EXIT); /* purecov: inspected */
   }
 
-<<<<<<< HEAD
 #ifdef WITH_WSREP
   // Initialize wsrep_provider_set before anything else wsrep related
   wsrep_provider_set =
       wsrep_provider != nullptr && strcmp(wsrep_provider, WSREP_NONE) != 0;
 #endif
 
-||||||| eaf397b6843
-=======
   if (initialize_manifest_file_components()) unireg_abort(MYSQLD_ABORT_EXIT);
 
   /*
@@ -8261,7 +8214,6 @@ int mysqld_main(int argc, char **argv)
   */
   set_srv_keyring_implementation_as_default();
 
->>>>>>> ps/release-8.0.25-15
   /*
    The subsequent calls may take a long time : e.g. innodb log read.
    Thus set the long running service control manager timeout
@@ -9371,7 +9323,6 @@ struct my_option my_long_early_options[] = {
   {"daemonize", 'D', "Run mysqld as sysv daemon", &opt_daemonize,
    &opt_daemonize, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
 #endif
-<<<<<<< HEAD
   {"skip-grant-tables", 0,
    "Start without grant tables. This gives all users FULL ACCESS to all "
    "tables.",
@@ -9426,6 +9377,18 @@ struct my_option my_long_early_options[] = {
    "Port number to use for connection.", &opt_keyring_migration_port,
    &opt_keyring_migration_port, nullptr, GET_ULONG, REQUIRED_ARG, 0, 0, 0,
    nullptr, 0, nullptr},
+  {"keyring-migration-to-component", OPT_KEYRING_MIGRATION_TO_COMPONENT,
+   "Migrate from keyring plugin to keyring component.",
+   &opt_keyring_migration_to_component, &opt_keyring_migration_to_component,
+   nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
+  {"keyring-migration-socket", OPT_KEYRING_MIGRATION_SOCKET,
+   "The socket file to use for connection.", &opt_keyring_migration_socket,
+   &opt_keyring_migration_socket, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
+   nullptr, 0, nullptr},
+  {"keyring-migration-port", OPT_KEYRING_MIGRATION_PORT,
+   "Port number to use for connection.", &opt_keyring_migration_port,
+   &opt_keyring_migration_port, nullptr, GET_ULONG, REQUIRED_ARG, 0, 0, 0,
+   nullptr, 0, nullptr},
   {"no-dd-upgrade", 0,
    "Abort restart if automatic upgrade or downgrade of the data dictionary "
    "is needed. Deprecated option. Use --upgrade=NONE instead.",
@@ -9453,171 +9416,6 @@ struct my_option my_long_early_options[] = {
   {nullptr, 0, nullptr, nullptr, nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0,
    nullptr, 0, nullptr}
 };
-||||||| eaf397b6843
-    {"skip-grant-tables", 0,
-     "Start without grant tables. This gives all users FULL ACCESS to all "
-     "tables.",
-     &opt_noacl, &opt_noacl, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"help", '?', "Display this help and exit.", &opt_help, &opt_help, nullptr,
-     GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"verbose", 'v', "Used with --help option for detailed help.", &opt_verbose,
-     &opt_verbose, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"version", 'V', "Output version information and exit.", nullptr, nullptr,
-     nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"initialize", 'I',
-     "Create the default database and exit."
-     " Create a super user with a random expired password and store it into "
-     "the log.",
-     &opt_initialize, &opt_initialize, nullptr, GET_BOOL, NO_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"initialize-insecure", 0,
-     "Create the default database and exit."
-     " Create a super user with empty password.",
-     &opt_initialize_insecure, &opt_initialize_insecure, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-source", OPT_KEYRING_MIGRATION_SOURCE,
-     "Keyring plugin from where the keys needs to "
-     "be migrated to. This option must be specified along with "
-     "--keyring-migration-destination.",
-     &opt_keyring_migration_source, &opt_keyring_migration_source, nullptr,
-     GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-destination", OPT_KEYRING_MIGRATION_DESTINATION,
-     "Keyring plugin to which the keys are "
-     "migrated to. This option must be specified along with "
-     "--keyring-migration-source.",
-     &opt_keyring_migration_destination, &opt_keyring_migration_destination,
-     nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-user", OPT_KEYRING_MIGRATION_USER,
-     "User to login to server.", &opt_keyring_migration_user,
-     &opt_keyring_migration_user, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"keyring-migration-host", OPT_KEYRING_MIGRATION_HOST, "Connect to host.",
-     &opt_keyring_migration_host, &opt_keyring_migration_host, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-password", 'p',
-     "Password to use when connecting to server during keyring migration. "
-     "If password value is not specified then it will be asked from the tty.",
-     nullptr, nullptr, nullptr, GET_PASSWORD, OPT_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"keyring-migration-socket", OPT_KEYRING_MIGRATION_SOCKET,
-     "The socket file to use for connection.", &opt_keyring_migration_socket,
-     &opt_keyring_migration_socket, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"keyring-migration-port", OPT_KEYRING_MIGRATION_PORT,
-     "Port number to use for connection.", &opt_keyring_migration_port,
-     &opt_keyring_migration_port, nullptr, GET_ULONG, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"no-dd-upgrade", 0,
-     "Abort restart if automatic upgrade or downgrade of the data dictionary "
-     "is needed. Deprecated option. Use --upgrade=NONE instead.",
-     &opt_no_dd_upgrade, &opt_no_dd_upgrade, nullptr, GET_BOOL, NO_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"validate-config", 0,
-     "Validate the server configuration specified by the user.",
-     &opt_validate_config, &opt_validate_config, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"core-file", OPT_WANT_CORE, "Write core on errors.", 0, 0, nullptr,
-     GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"coredumper", OPT_COREDUMPER,
-     "Use coredumper library to generate coredumps. Specify a path for "
-     "coredump "
-     "otherwise it will be generated on datadir",
-     &opt_libcoredumper_path, &opt_libcoredumper_path, 0, GET_STR, OPT_ARG, 0,
-     0, 0, 0, 0, 0},
-    {"skip-stack-trace", OPT_SKIP_STACK_TRACE,
-     "Don't print a stack trace on failure.", 0, 0, nullptr, GET_NO_ARG, NO_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    /* We must always support the next option to make scripts like mysqltest
-       easier to do */
-    {"gdb", 0, "Set up signals usable for debugging.", &opt_debugging,
-     &opt_debugging, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {nullptr, 0, nullptr, nullptr, nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0,
-     0, nullptr, 0, nullptr}};
-=======
-    {"skip-grant-tables", 0,
-     "Start without grant tables. This gives all users FULL ACCESS to all "
-     "tables.",
-     &opt_noacl, &opt_noacl, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"help", '?', "Display this help and exit.", &opt_help, &opt_help, nullptr,
-     GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"verbose", 'v', "Used with --help option for detailed help.", &opt_verbose,
-     &opt_verbose, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"version", 'V', "Output version information and exit.", nullptr, nullptr,
-     nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"initialize", 'I',
-     "Create the default database and exit."
-     " Create a super user with a random expired password and store it into "
-     "the log.",
-     &opt_initialize, &opt_initialize, nullptr, GET_BOOL, NO_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"initialize-insecure", 0,
-     "Create the default database and exit."
-     " Create a super user with empty password.",
-     &opt_initialize_insecure, &opt_initialize_insecure, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-source", OPT_KEYRING_MIGRATION_SOURCE,
-     "Keyring plugin from where the keys needs to "
-     "be migrated to. This option must be specified along with "
-     "--keyring-migration-destination.",
-     &opt_keyring_migration_source, &opt_keyring_migration_source, nullptr,
-     GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-destination", OPT_KEYRING_MIGRATION_DESTINATION,
-     "Keyring plugin or component to which the keys are migrated to.",
-     &opt_keyring_migration_destination, &opt_keyring_migration_destination,
-     nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-user", OPT_KEYRING_MIGRATION_USER,
-     "User to login to server.", &opt_keyring_migration_user,
-     &opt_keyring_migration_user, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"keyring-migration-host", OPT_KEYRING_MIGRATION_HOST, "Connect to host.",
-     &opt_keyring_migration_host, &opt_keyring_migration_host, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"keyring-migration-password", 'p',
-     "Password to use when connecting to server during keyring migration. "
-     "If password value is not specified then it will be asked from the tty.",
-     nullptr, nullptr, nullptr, GET_PASSWORD, OPT_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"keyring-migration-socket", OPT_KEYRING_MIGRATION_SOCKET,
-     "The socket file to use for connection.", &opt_keyring_migration_socket,
-     &opt_keyring_migration_socket, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"keyring-migration-port", OPT_KEYRING_MIGRATION_PORT,
-     "Port number to use for connection.", &opt_keyring_migration_port,
-     &opt_keyring_migration_port, nullptr, GET_ULONG, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"keyring-migration-to-component", OPT_KEYRING_MIGRATION_TO_COMPONENT,
-     "Migrate from keyring plugin to keyring component.",
-     &opt_keyring_migration_to_component, &opt_keyring_migration_to_component,
-     nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"no-dd-upgrade", 0,
-     "Abort restart if automatic upgrade or downgrade of the data dictionary "
-     "is needed. Deprecated option. Use --upgrade=NONE instead.",
-     &opt_no_dd_upgrade, &opt_no_dd_upgrade, nullptr, GET_BOOL, NO_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"validate-config", 0,
-     "Validate the server configuration specified by the user.",
-     &opt_validate_config, &opt_validate_config, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"core-file", OPT_WANT_CORE, "Write core on errors.", 0, 0, nullptr,
-     GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"coredumper", OPT_COREDUMPER,
-     "Use coredumper library to generate coredumps. Specify a path for "
-     "coredump "
-     "otherwise it will be generated on datadir",
-     &opt_libcoredumper_path, &opt_libcoredumper_path, 0, GET_STR, OPT_ARG, 0,
-     0, 0, 0, 0, 0},
-    {"skip-stack-trace", OPT_SKIP_STACK_TRACE,
-     "Don't print a stack trace on failure.", 0, 0, nullptr, GET_NO_ARG, NO_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    /* We must always support the next option to make scripts like mysqltest
-       easier to do */
-    {"gdb", 0, "Set up signals usable for debugging.", &opt_debugging,
-     &opt_debugging, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {nullptr, 0, nullptr, nullptr, nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0,
-     0, nullptr, 0, nullptr}};
->>>>>>> ps/release-8.0.25-15
 
 /**
   System variables are automatically command-line options (few
@@ -9712,7 +9510,6 @@ struct my_option my_long_options[] = {
    &opt_super_large_pages, &opt_super_large_pages, nullptr, GET_BOOL, OPT_ARG,
    0, 0, 1, nullptr, 1, nullptr},
 #endif
-<<<<<<< HEAD
   {"language", 'L',
    "Client error messages in given language. May be given as a full path. "
    "Deprecated. Use --lc-messages-dir instead.",
@@ -9865,323 +9662,6 @@ struct my_option my_long_options[] = {
    nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
   {"skip-new", OPT_SKIP_NEW, "Don't use new, possibly wrong routines.", nullptr,
    nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-  {"skip-slave-start", 0, "If set, slave is not autostarted.",
-   &opt_skip_slave_start, &opt_skip_slave_start, nullptr, GET_BOOL, NO_ARG, 0,
-   0, 0, nullptr, 0, nullptr},
-||||||| eaf397b6843
-    {"language", 'L',
-     "Client error messages in given language. May be given as a full path. "
-     "Deprecated. Use --lc-messages-dir instead.",
-     &lc_messages_dir_ptr, &lc_messages_dir_ptr, nullptr, GET_STR, REQUIRED_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    {"lc-messages", 0, "Set the language used for the error messages.",
-     &lc_messages, &lc_messages, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"lc-time-names", 0,
-     "Set the language used for the month names and the days of the week.",
-     &lc_time_names_name, &lc_time_names_name, nullptr, GET_STR, REQUIRED_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    {"log-bin", OPT_BIN_LOG,
-     "Configures the name prefix to use for binary log files. If the --log-bin "
-     "option is not supplied, the name prefix defaults to \"binlog\". If the "
-     "--log-bin option is supplied without argument, the name prefix defaults "
-     "to \"HOSTNAME-bin\", where HOSTNAME is the machine's hostname. To set a "
-     "different name prefix for binary log files, use --log-bin=name. To "
-     "disable "
-     "binary logging, use the --skip-log-bin or --disable-log-bin option.",
-     &opt_bin_logname, &opt_bin_logname, nullptr, GET_STR_ALLOC, OPT_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"log-bin-index", 0, "File that holds the names for binary log files.",
-     &opt_binlog_index_name, &opt_binlog_index_name, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"relay-log-index", 0, "File that holds the names for relay log files.",
-     &opt_relaylog_index_name, &opt_relaylog_index_name, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
-     &myisam_log_filename, &myisam_log_filename, nullptr, GET_STR, OPT_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"log-short-format", 0,
-     "Don't log extra information to update and slow-query logs.",
-     &opt_short_log_format, &opt_short_log_format, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"log-tc", 0,
-     "Path to transaction coordinator log (used for transactions that affect "
-     "more than one storage engine, when binary log is disabled).",
-     &opt_tc_log_file, &opt_tc_log_file, nullptr, GET_STR, REQUIRED_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"log-tc-size", 0, "Size of transaction coordinator log.", &opt_tc_log_size,
-     &opt_tc_log_size, nullptr, GET_ULONG, REQUIRED_ARG,
-     TC_LOG_MIN_PAGES *my_getpagesize(), TC_LOG_MIN_PAGES *my_getpagesize(),
-     ULONG_MAX, nullptr, my_getpagesize(), nullptr},
-    {"master-info-file", OPT_MASTER_INFO_FILE,
-     "The location and name of the file that remembers the master and where "
-     "the I/O replication thread is in the master's binlogs. "
-     "Deprecated option that shall be removed eventually without a "
-     "replacement.",
-     &master_info_file, &master_info_file, nullptr, GET_STR, REQUIRED_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"master-retry-count", OPT_MASTER_RETRY_COUNT,
-     "The number of tries the slave will make to connect to the master before "
-     "giving up. "
-     "Deprecated option, use 'CHANGE MASTER TO master_retry_count = <num>' "
-     "instead.",
-     &master_retry_count, &master_retry_count, nullptr, GET_ULONG, REQUIRED_ARG,
-     3600 * 24, 0, 0, nullptr, 0, nullptr},
-    {"max-binlog-dump-events", 0,
-     "Option used by mysql-test for debugging and testing of replication.",
-     &max_binlog_dump_events, &max_binlog_dump_events, nullptr, GET_INT,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
-     &locked_in_memory, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"old-style-user-limits", 0,
-     "Enable old-style user limits (before 5.0.3, user resources were counted "
-     "per each user+host vs. per account).",
-     &opt_old_style_user_limits, &opt_old_style_user_limits, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"port-open-timeout", 0,
-     "Maximum time in seconds to wait for the port to become free. "
-     "(Default: No wait).",
-     &mysqld_port_timeout, &mysqld_port_timeout, nullptr, GET_UINT,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"replicate-do-db", OPT_REPLICATE_DO_DB,
-     "Tells the slave thread to restrict replication to the specified "
-     "database. "
-     "To specify more than one database, use the directive multiple times, "
-     "once for each database. Note that this will only work if you do not use "
-     "cross-database queries such as UPDATE some_db.some_table SET foo='bar' "
-     "while having selected a different or no database. If you need cross "
-     "database updates to work, make sure you have 3.23.28 or later, and use "
-     "replicate-wild-do-table=db_name.%.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-do-table", OPT_REPLICATE_DO_TABLE,
-     "Tells the slave thread to restrict replication to the specified table. "
-     "To specify more than one table, use the directive multiple times, once "
-     "for each table. This will work for cross-database updates, in contrast "
-     "to replicate-do-db.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-ignore-db", OPT_REPLICATE_IGNORE_DB,
-     "Tells the slave thread to not replicate to the specified database. To "
-     "specify more than one database to ignore, use the directive multiple "
-     "times, once for each database. This option will not work if you use "
-     "cross database updates. If you need cross database updates to work, "
-     "make sure you have 3.23.28 or later, and use replicate-wild-ignore-"
-     "table=db_name.%. ",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-ignore-table", OPT_REPLICATE_IGNORE_TABLE,
-     "Tells the slave thread to not replicate to the specified table. To "
-     "specify "
-     "more than one table to ignore, use the directive multiple times, once "
-     "for "
-     "each table. This will work for cross-database updates, in contrast to "
-     "replicate-ignore-db.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-rewrite-db", OPT_REPLICATE_REWRITE_DB,
-     "Updates to a database with a different name than the original. Example: "
-     "replicate-rewrite-db=master_db_name->slave_db_name.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-same-server-id", 0,
-     "In replication, if set to 1, do not skip events having our server id. "
-     "Default value is 0 (to break infinite loops in circular replication). "
-     "Can't be set to 1 if --log-slave-updates is used.",
-     &replicate_same_server_id, &replicate_same_server_id, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"replicate-wild-do-table", OPT_REPLICATE_WILD_DO_TABLE,
-     "Tells the slave thread to restrict replication to the tables that match "
-     "the specified wildcard pattern. To specify more than one table, use the "
-     "directive multiple times, once for each table. This will work for cross-"
-     "database updates. Example: replicate-wild-do-table=foo%.bar% will "
-     "replicate only updates to tables in all databases that start with foo "
-     "and whose table names start with bar.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-wild-ignore-table", OPT_REPLICATE_WILD_IGNORE_TABLE,
-     "Tells the slave thread to not replicate to the tables that match the "
-     "given wildcard pattern. To specify more than one table to ignore, use "
-     "the directive multiple times, once for each table. This will work for "
-     "cross-database updates. Example: replicate-wild-ignore-table=foo%.bar% "
-     "will not do updates to tables in databases that start with foo and whose "
-     "table names start with bar.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"safe-user-create", 0,
-     "Don't allow new user creation by the user who has no write privileges to "
-     "the mysql.user table.",
-     &opt_safe_user_create, &opt_safe_user_create, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"show-slave-auth-info", 0,
-     "Show user and password in SHOW SLAVE HOSTS on this master.",
-     &opt_show_slave_auth_info, &opt_show_slave_auth_info, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", nullptr,
-     nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"skip-new", OPT_SKIP_NEW, "Don't use new, possibly wrong routines.",
-     nullptr, nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"skip-slave-start", 0, "If set, slave is not autostarted.",
-     &opt_skip_slave_start, &opt_skip_slave_start, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-=======
-    {"language", 'L',
-     "Client error messages in given language. May be given as a full path. "
-     "Deprecated. Use --lc-messages-dir instead.",
-     &lc_messages_dir_ptr, &lc_messages_dir_ptr, nullptr, GET_STR, REQUIRED_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    {"lc-messages", 0, "Set the language used for the error messages.",
-     &lc_messages, &lc_messages, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0,
-     nullptr, 0, nullptr},
-    {"lc-time-names", 0,
-     "Set the language used for the month names and the days of the week.",
-     &lc_time_names_name, &lc_time_names_name, nullptr, GET_STR, REQUIRED_ARG,
-     0, 0, 0, nullptr, 0, nullptr},
-    {"log-bin", OPT_BIN_LOG,
-     "Configures the name prefix to use for binary log files. If the --log-bin "
-     "option is not supplied, the name prefix defaults to \"binlog\". If the "
-     "--log-bin option is supplied without argument, the name prefix defaults "
-     "to \"HOSTNAME-bin\", where HOSTNAME is the machine's hostname. To set a "
-     "different name prefix for binary log files, use --log-bin=name. To "
-     "disable "
-     "binary logging, use the --skip-log-bin or --disable-log-bin option.",
-     &opt_bin_logname, &opt_bin_logname, nullptr, GET_STR_ALLOC, OPT_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"log-bin-index", 0, "File that holds the names for binary log files.",
-     &opt_binlog_index_name, &opt_binlog_index_name, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"relay-log-index", 0, "File that holds the names for relay log files.",
-     &opt_relaylog_index_name, &opt_relaylog_index_name, nullptr, GET_STR,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
-     &myisam_log_filename, &myisam_log_filename, nullptr, GET_STR, OPT_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"log-short-format", 0,
-     "Don't log extra information to update and slow-query logs.",
-     &opt_short_log_format, &opt_short_log_format, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"log-tc", 0,
-     "Path to transaction coordinator log (used for transactions that affect "
-     "more than one storage engine, when binary log is disabled).",
-     &opt_tc_log_file, &opt_tc_log_file, nullptr, GET_STR, REQUIRED_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"log-tc-size", 0, "Size of transaction coordinator log.", &opt_tc_log_size,
-     &opt_tc_log_size, nullptr, GET_ULONG, REQUIRED_ARG,
-     TC_LOG_MIN_PAGES *my_getpagesize(), TC_LOG_MIN_PAGES *my_getpagesize(),
-     ULONG_MAX, nullptr, my_getpagesize(), nullptr},
-    {"master-info-file", OPT_MASTER_INFO_FILE,
-     "The location and name of the file that remembers the master and where "
-     "the I/O replication thread is in the master's binlogs. "
-     "Deprecated option that shall be removed eventually without a "
-     "replacement.",
-     &master_info_file, &master_info_file, nullptr, GET_STR, REQUIRED_ARG, 0, 0,
-     0, nullptr, 0, nullptr},
-    {"master-retry-count", OPT_MASTER_RETRY_COUNT,
-     "The number of tries the slave will make to connect to the master before "
-     "giving up. "
-     "Deprecated option, use 'CHANGE MASTER TO master_retry_count = <num>' "
-     "instead.",
-     &master_retry_count, &master_retry_count, nullptr, GET_ULONG, REQUIRED_ARG,
-     3600 * 24, 0, 0, nullptr, 0, nullptr},
-    {"max-binlog-dump-events", 0,
-     "Option used by mysql-test for debugging and testing of replication.",
-     &max_binlog_dump_events, &max_binlog_dump_events, nullptr, GET_INT,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
-     &locked_in_memory, nullptr, GET_BOOL, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"old-style-user-limits", 0,
-     "Enable old-style user limits (before 5.0.3, user resources were counted "
-     "per each user+host vs. per account).",
-     &opt_old_style_user_limits, &opt_old_style_user_limits, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"port-open-timeout", 0,
-     "Maximum time in seconds to wait for the port to become free. "
-     "(Default: No wait).",
-     &mysqld_port_timeout, &mysqld_port_timeout, nullptr, GET_UINT,
-     REQUIRED_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"replicate-do-db", OPT_REPLICATE_DO_DB,
-     "Tells the slave thread to restrict replication to the specified "
-     "database. "
-     "To specify more than one database, use the directive multiple times, "
-     "once for each database. Note that this will only work if you do not use "
-     "cross-database queries such as UPDATE some_db.some_table SET foo='bar' "
-     "while having selected a different or no database. If you need cross "
-     "database updates to work, make sure you have 3.23.28 or later, and use "
-     "replicate-wild-do-table=db_name.%.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-do-table", OPT_REPLICATE_DO_TABLE,
-     "Tells the slave thread to restrict replication to the specified table. "
-     "To specify more than one table, use the directive multiple times, once "
-     "for each table. This will work for cross-database updates, in contrast "
-     "to replicate-do-db.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-ignore-db", OPT_REPLICATE_IGNORE_DB,
-     "Tells the slave thread to not replicate to the specified database. To "
-     "specify more than one database to ignore, use the directive multiple "
-     "times, once for each database. This option will not work if you use "
-     "cross database updates. If you need cross database updates to work, "
-     "make sure you have 3.23.28 or later, and use replicate-wild-ignore-"
-     "table=db_name.%. ",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-ignore-table", OPT_REPLICATE_IGNORE_TABLE,
-     "Tells the slave thread to not replicate to the specified table. To "
-     "specify "
-     "more than one table to ignore, use the directive multiple times, once "
-     "for "
-     "each table. This will work for cross-database updates, in contrast to "
-     "replicate-ignore-db.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-rewrite-db", OPT_REPLICATE_REWRITE_DB,
-     "Updates to a database with a different name than the original. Example: "
-     "replicate-rewrite-db=master_db_name->slave_db_name.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-same-server-id", 0,
-     "In replication, if set to 1, do not skip events having our server id. "
-     "Default value is 0 (to break infinite loops in circular replication). "
-     "Can't be set to 1 if --log-slave-updates is used.",
-     &replicate_same_server_id, &replicate_same_server_id, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"replicate-wild-do-table", OPT_REPLICATE_WILD_DO_TABLE,
-     "Tells the slave thread to restrict replication to the tables that match "
-     "the specified wildcard pattern. To specify more than one table, use the "
-     "directive multiple times, once for each table. This will work for cross-"
-     "database updates. Example: replicate-wild-do-table=foo%.bar% will "
-     "replicate only updates to tables in all databases that start with foo "
-     "and whose table names start with bar.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"replicate-wild-ignore-table", OPT_REPLICATE_WILD_IGNORE_TABLE,
-     "Tells the slave thread to not replicate to the tables that match the "
-     "given wildcard pattern. To specify more than one table to ignore, use "
-     "the directive multiple times, once for each table. This will work for "
-     "cross-database updates. Example: replicate-wild-ignore-table=foo%.bar% "
-     "will not do updates to tables in databases that start with foo and whose "
-     "table names start with bar.",
-     nullptr, nullptr, nullptr, GET_STR, REQUIRED_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
-    {"safe-user-create", 0,
-     "Don't allow new user creation by the user who has no write privileges to "
-     "the mysql.user table.",
-     &opt_safe_user_create, &opt_safe_user_create, nullptr, GET_BOOL, NO_ARG, 0,
-     0, 0, nullptr, 0, nullptr},
-    {"show-slave-auth-info", 0,
-     "Show user and password in SHOW SLAVE HOSTS on this master.",
-     &opt_show_slave_auth_info, &opt_show_slave_auth_info, nullptr, GET_BOOL,
-     NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", nullptr,
-     nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0, nullptr},
-    {"skip-new", OPT_SKIP_NEW, "Don't use new, possibly wrong routines.",
-     nullptr, nullptr, nullptr, GET_NO_ARG, NO_ARG, 0, 0, 0, nullptr, 0,
-     nullptr},
->>>>>>> ps/release-8.0.25-15
 #if defined(_WIN32)
   {"slow-start-timeout", 0,
    "Maximum number of milliseconds that the service control manager should "

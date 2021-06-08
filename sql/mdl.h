@@ -1115,14 +1115,8 @@ class MDL_ticket : public MDL_wait_for_subgraph {
              bool wsrep_non_preemptable
 #else
   MDL_ticket(MDL_context *ctx_arg, enum_mdl_type type_arg
-<<<<<<< HEAD
 #endif /* WITH_WSREP */
-#ifndef DBUG_OFF
-||||||| eaf397b6843
-#ifndef DBUG_OFF
-=======
 #ifndef NDEBUG
->>>>>>> ps/release-8.0.25-15
              ,
              enum_mdl_duration duration_arg
 #endif

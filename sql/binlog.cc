@@ -1197,17 +1197,12 @@ static binlog_cache_mngr *thd_get_cache_mngr(const THD *thd) {
     If opt_bin_log is not set, binlog_hton->slot == -1 and hence
     thd_get_ha_data(thd, hton) segfaults.
   */
-<<<<<<< HEAD
 #ifdef WITH_WSREP
   /* PXC can operate in emulation bin logging mode so suppressing the check. */
 #else
-  DBUG_ASSERT(opt_bin_log);
-#endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(opt_bin_log);
-=======
   assert(opt_bin_log);
->>>>>>> ps/release-8.0.25-15
+  assert(opt_bin_log);
+#endif /* WITH_WSREP */
   return (binlog_cache_mngr *)thd_get_ha_data(thd, binlog_hton);
 }
 
@@ -1277,19 +1272,13 @@ static void binlog_trans_log_savepos(THD *thd, my_off_t *pos) {
   DBUG_TRACE;
   assert(pos != nullptr);
   binlog_cache_mngr *const cache_mngr = thd_get_cache_mngr(thd);
-<<<<<<< HEAD
 
 #ifdef WITH_WSREP
-  DBUG_ASSERT((WSREP_EMULATE_BINLOG(thd)) || mysql_bin_log.is_open());
+  assert((WSREP_EMULATE_BINLOG(thd)) || mysql_bin_log.is_open());
 #else
-  DBUG_ASSERT(mysql_bin_log.is_open());
+  assert(mysql_bin_log.is_open());
 #endif /* WITH_WSREP */
 
-||||||| eaf397b6843
-  DBUG_ASSERT(mysql_bin_log.is_open());
-=======
-  assert(mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
   *pos = cache_mngr->trx_cache.get_byte_position();
   DBUG_PRINT("return", ("position: %lu", (ulong)*pos));
   cache_mngr->trx_cache.cache_state_checkpoint(*pos);
@@ -1470,7 +1459,6 @@ static int binlog_deinit(void *) {
 static int binlog_close_connection(handlerton *, THD *thd) {
   DBUG_TRACE;
   binlog_cache_mngr *const cache_mngr = thd_get_cache_mngr(thd);
-<<<<<<< HEAD
 
 #ifdef WITH_WSREP
   if (!cache_mngr->is_binlog_empty()) {
@@ -1496,12 +1484,7 @@ static int binlog_close_connection(handlerton *, THD *thd) {
   }
 #endif /* WITH_WSREP */
 
-  DBUG_ASSERT(cache_mngr->is_binlog_empty());
-||||||| eaf397b6843
-  DBUG_ASSERT(cache_mngr->is_binlog_empty());
-=======
   assert(cache_mngr->is_binlog_empty());
->>>>>>> ps/release-8.0.25-15
   DBUG_PRINT("debug", ("Set ha_data slot %d to 0x%llx", binlog_hton->slot,
                        (ulonglong) nullptr));
   thd_set_ha_data(thd, binlog_hton, nullptr);
@@ -7305,17 +7288,11 @@ int MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
                                                     Rows_log_event *event,
                                                     bool is_transactional) {
   DBUG_TRACE;
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
+  assert(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
 #else
-  DBUG_ASSERT(mysql_bin_log.is_open());
-#endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(mysql_bin_log.is_open());
-=======
   assert(mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
+#endif /* WITH_WSREP */
   DBUG_PRINT("enter", ("event: %p", event));
 
   int error = 0;
@@ -8395,26 +8372,16 @@ int MYSQL_BIN_LOG::prepare(THD *thd, bool all) {
     active transactional storage engines, such as is the case if this is a
     replication applier and log_slave_updates=0.
   */
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(thd->wsrep_applier ||
+  assert(thd->wsrep_applier ||
               (thd->slave_thread ? opt_log_slave_updates
                                  : thd->variables.sql_log_bin) ||
               total_ha_2pc > 1);
 #else
-  DBUG_ASSERT((thd->slave_thread ? opt_log_slave_updates
+  assert((thd->slave_thread ? opt_log_slave_updates
                                  : thd->variables.sql_log_bin) ||
               total_ha_2pc > 1);
 #endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT((thd->slave_thread ? opt_log_slave_updates
-                                 : thd->variables.sql_log_bin) ||
-              total_ha_2pc > 1);
-=======
-  assert((thd->slave_thread ? opt_log_slave_updates
-                            : thd->variables.sql_log_bin) ||
-         total_ha_2pc > 1);
->>>>>>> ps/release-8.0.25-15
 
   /*
     Set HA_IGNORE_DURABILITY to not flush the prepared record of the
@@ -10067,16 +10034,10 @@ bool THD::is_binlog_cache_empty(bool is_transactional) const {
 
   // If opt_bin_log==0, it is not safe to call thd_get_cache_mngr
   // because binlog_hton has not been completely set up.
-<<<<<<< HEAD
 #ifdef WITH_WSREP
 #else
-  DBUG_ASSERT(opt_bin_log);
-#endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(opt_bin_log);
-=======
   assert(opt_bin_log);
->>>>>>> ps/release-8.0.25-15
+#endif /* WITH_WSREP */
   binlog_cache_mngr *cache_mngr = thd_get_cache_mngr(this);
 
   // cache_mngr is NULL until we call thd->binlog_setup_trx_data, so
@@ -10280,21 +10241,13 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
                        table->s->table_map_id.id()));
 
   /* Pre-conditions */
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+  assert(is_current_stmt_binlog_format_row() &&
               (WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open()));
 #else
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-#endif /* WITH_WSREP */
-  DBUG_ASSERT(table->s->table_map_id.is_valid());
-||||||| eaf397b6843
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-  DBUG_ASSERT(table->s->table_map_id.is_valid());
-=======
   assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+#endif /* WITH_WSREP */
   assert(table->s->table_map_id.is_valid());
->>>>>>> ps/release-8.0.25-15
 
   Table_map_log_event the_event(this, table, table->s->table_map_id,
                                 is_transactional);
@@ -11857,18 +11810,12 @@ class Row_data_memory {
 
 int THD::binlog_write_row(TABLE *table, bool is_trans, uchar const *record,
                           const unsigned char *extra_row_info) {
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+  assert(is_current_stmt_binlog_format_row() &&
               ((WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open())));
 #else
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-#endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-=======
   assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
+#endif /* WITH_WSREP */
 
   /*
     Pack records into format for transfer. We are allocating more
@@ -11895,19 +11842,13 @@ int THD::binlog_update_row(TABLE *table, bool is_trans,
                            const uchar *before_record,
                            const uchar *after_record,
                            const unsigned char *extra_row_info) {
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+  assert(is_current_stmt_binlog_format_row() &&
               ((WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open())));
 #else
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+  assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
 #endif /* WITH_WSREP */
 
-||||||| eaf397b6843
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-=======
-  assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
   int error = 0;
 
   /**
@@ -11976,19 +11917,13 @@ int THD::binlog_update_row(TABLE *table, bool is_trans,
 
 int THD::binlog_delete_row(TABLE *table, bool is_trans, uchar const *record,
                            const unsigned char *extra_row_info) {
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+  assert(is_current_stmt_binlog_format_row() &&
               ((WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open())));
 #else
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+  assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
 #endif /* WITH_WSREP */
 
-||||||| eaf397b6843
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
-=======
-  assert(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
   int error = 0;
 
   /**
@@ -12331,18 +12266,12 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, const char *query_arg,
   DBUG_TRACE;
   DBUG_PRINT("enter",
              ("qtype: %s  query: '%s'", show_query_type(qtype), query_arg));
-<<<<<<< HEAD
 #ifdef WITH_WSREP
-  DBUG_ASSERT(query_arg &&
+  assert(query_arg &&
               (WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open()));
 #else
-  DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
-#endif /* WITH_WSREP */
-||||||| eaf397b6843
-  DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
-=======
   assert(query_arg && mysql_bin_log.is_open());
->>>>>>> ps/release-8.0.25-15
+#endif /* WITH_WSREP */
 
   if (get_binlog_local_stmt_filter() == BINLOG_FILTER_SET) {
     /*

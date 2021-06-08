@@ -606,16 +606,12 @@ static PFS_engine_table_share *all_shares[] = {
     &table_user_defined_functions::m_share,
     &table_binary_log_transaction_compression_stats::m_share,
     &table_tls_channel_status::m_share,
-<<<<<<< HEAD
+    &table_keyring_component_status::m_share,
 
 #ifdef WITH_WSREP
     &table_pxc_cluster_view::m_share,
 #endif /* WITH_WSREP */
 
-||||||| eaf397b6843
-=======
-    &table_keyring_component_status::m_share,
->>>>>>> ps/release-8.0.25-15
     nullptr};
 
 static PSI_mutex_key key_LOCK_pfs_share_list;

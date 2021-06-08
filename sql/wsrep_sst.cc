@@ -431,7 +431,7 @@ static int sst_scan_uuid_seqno(const char *str, wsrep_uuid_t *uuid,
   freed with my_free().
  */
 static int generate_binlog_opt_val(char **ret) {
-  DBUG_ASSERT(ret);
+  assert(ret);
   *ret = NULL;
   if (opt_bin_log && global_gtid_mode.get() > Gtid_mode::OFF) {
     assert(opt_bin_logname);
@@ -1144,7 +1144,7 @@ static int wsrep_create_sst_user(bool initialize_thread, const char *password) {
     "GRANT BACKUP_ADMIN, LOCK TABLES, PROCESS, RELOAD, REPLICATION CLIENT, "
     "SUPER ON *.* TO 'mysql.pxc.sst.user'@localhost;",
     nullptr,
-    "GRANT CREATE, INSERT, SELECT ON PERCONA_SCHEMA.xtrabackup_history TO "
+    "GRANT CREATE, INSERT, SELECT, ALTER ON PERCONA_SCHEMA.xtrabackup_history TO "
     "'mysql.pxc.sst.user'@localhost;",
     nullptr,
     "GRANT SELECT ON performance_schema.* TO 'mysql.pxc.sst.user'@localhost;",
@@ -1570,6 +1570,6 @@ int wsrep_sst_donate(const std::string &msg, const wsrep::gtid &current_gtid,
   /* Above methods should return 0 in case of success and negative value
    * in case of failure. If we have any positive value here it means that we
    * handle errors in above functions in the wrong way */
-  DBUG_ASSERT(ret <= 0);
+  assert(ret <= 0);
   return (ret >= 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
 }
